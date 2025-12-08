@@ -1,10 +1,10 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { NotificationService } from '../../services/notification.service';
-import { Subscription } from 'rxjs';
+import { Subscription, interval } from 'rxjs';
 
 @Component({
   selector: 'app-header',
@@ -39,8 +39,24 @@ import { Subscription } from 'rxjs';
 
         <div class="header-right">
           @if (auth.isAuthenticated()) {
-            <div class="credits-badge">
+            <div class="credits-bar-container" [title]="auth.credits() + ' / ' + maxCredits() + ' Credits'">
               <span class="credits-icon">💎</span>
+              <div class="credits-bar">
+                @for (i of creditSlots(); track i) {
+                  <div
+                    class="credit-slot"
+                    [class.filled]="i < auth.credits()"
+                    [class.charging]="i === auth.credits() && auth.credits() < maxCredits()"
+                  >
+                    @if (i === auth.credits() && auth.credits() < maxCredits()) {
+                      <div
+                        class="charge-progress"
+                        [style.height.%]="chargeProgress()"
+                      ></div>
+                    }
+                  </div>
+                }
+              </div>
               <span class="credits-count">{{ auth.credits() }}</span>
             </div>
 
@@ -162,23 +178,74 @@ import { Subscription } from 'rxjs';
       gap: 16px;
     }
 
-    .credits-badge {
+    .credits-bar-container {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
+      gap: 8px;
+      padding: 6px 12px;
       background: $bg-tertiary;
       border: 1px solid $border-color;
       border-radius: $radius-full;
-      font-size: 14px;
-      font-weight: 600;
 
       .credits-icon {
-        font-size: 16px;
+        font-size: 14px;
+      }
+
+      .credits-bar {
+        display: flex;
+        gap: 2px;
+      }
+
+      .credit-slot {
+        width: 12px;
+        height: 16px;
+        background: $bg-primary;
+        border: 1px solid $border-color;
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+        transition: background $transition-fast;
+
+        &.filled {
+          background: $accent-primary;
+          border-color: $accent-secondary;
+          box-shadow: 0 0 4px rgba($accent-primary, 0.4);
+        }
+
+        &.charging {
+          background: $bg-primary;
+
+          // Schraffierter Hintergrund
+          &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(
+              -45deg,
+              transparent,
+              transparent 2px,
+              rgba($accent-primary, 0.2) 2px,
+              rgba($accent-primary, 0.2) 4px
+            );
+          }
+        }
+
+        .charge-progress {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: linear-gradient(to top, $accent-primary, $accent-secondary);
+          transition: height 1s linear;
+        }
       }
 
       .credits-count {
+        font-size: 13px;
+        font-weight: 600;
         color: $accent-primary;
+        min-width: 16px;
+        text-align: center;
       }
     }
 
@@ -285,13 +352,44 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ws = inject(WebSocketService);
   private notifications = inject(NotificationService);
   private subscription?: Subscription;
+  private timerSubscription?: Subscription;
 
   menuOpen = false;
+
+  // Signal for tracking seconds until next credit
+  private secondsUntilCredit = signal(0);
+
+  // Computed values from user data (with defaults)
+  maxCredits = computed(() => this.auth.user()?.credit_max ?? 10);
+  creditIntervalSeconds = computed(() => this.auth.user()?.credit_interval_seconds ?? 600);
+
+  // Array of slot indices for the template
+  creditSlots = computed(() => Array.from({ length: this.maxCredits() }, (_, i) => i));
+
+  // Progress percentage for the charging credit (0-100)
+  chargeProgress = computed(() => {
+    const seconds = this.secondsUntilCredit();
+    const intervalSeconds = this.creditIntervalSeconds();
+    if (seconds <= 0 || this.auth.credits() >= this.maxCredits()) return 0;
+    const progress = ((intervalSeconds - seconds) / intervalSeconds) * 100;
+    return Math.max(0, Math.min(100, progress));
+  });
+
+  constructor() {
+    // Update secondsUntilCredit when user data changes
+    effect(() => {
+      const user = this.auth.user();
+      if (user && user.seconds_until_credit !== undefined) {
+        this.secondsUntilCredit.set(user.seconds_until_credit);
+      }
+    });
+  }
 
   ngOnInit(): void {
     // Connect to WebSocket when authenticated
     if (this.auth.isAuthenticated()) {
       this.ws.connect();
+      this.initCreditTimer();
     }
 
     // Listen for vote notifications
@@ -309,6 +407,22 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    this.timerSubscription?.unsubscribe();
+  }
+
+  private initCreditTimer(): void {
+    // Update every second
+    this.timerSubscription = interval(1000).subscribe(() => {
+      const current = this.secondsUntilCredit();
+      if (current > 0) {
+        this.secondsUntilCredit.set(current - 1);
+      } else if (this.auth.credits() < this.maxCredits()) {
+        // Credit should have been earned, refresh user data
+        this.auth.refreshUser();
+        // Reset timer with interval from config
+        this.secondsUntilCredit.set(this.creditIntervalSeconds());
+      }
+    });
   }
 
   toggleMenu(): void {

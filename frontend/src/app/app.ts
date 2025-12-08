@@ -20,7 +20,8 @@ export class App implements OnInit {
   }
 
   ngOnInit(): void {
-    // Try to restore session from stored token
-    this.authService.checkAuth();
+    // AuthService constructor already handles token check and user loading
+    // No need to call checkAuth() again here
+    console.log('[App] ngOnInit - isAuthenticated:', this.isAuthenticated, '- hasToken:', !!this.authService.getToken());
   }
 }

@@ -10,4 +10,6 @@ export interface User {
 export interface CurrentUser extends User {
   credits: number;
   seconds_until_credit: number;
+  credit_interval_seconds: number;
+  credit_max: number;
 }

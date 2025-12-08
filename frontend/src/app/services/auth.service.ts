@@ -12,9 +12,11 @@ export class AuthService {
 
   private currentUser = signal<CurrentUser | null>(null);
   private loading = signal(false);
+  private tokenExists = signal(false);
 
   readonly user = this.currentUser.asReadonly();
-  readonly isAuthenticated = computed(() => !!this.currentUser());
+  // isAuthenticated is true if we have a token (even while loading user data)
+  readonly isAuthenticated = computed(() => this.tokenExists() || !!this.currentUser());
   readonly isLoading = this.loading.asReadonly();
   readonly credits = computed(() => this.currentUser()?.credits ?? 0);
 
@@ -23,7 +25,10 @@ export class AuthService {
     private router: Router
   ) {
     // Check for existing token on startup
-    if (this.getToken()) {
+    const token = this.getToken();
+    console.log('[AuthService] Constructor - Token exists:', !!token);
+    this.tokenExists.set(!!token);
+    if (token) {
       this.loadCurrentUser();
     }
   }
@@ -34,10 +39,12 @@ export class AuthService {
 
   setToken(token: string): void {
     localStorage.setItem(this.TOKEN_KEY, token);
+    this.tokenExists.set(true);
   }
 
   removeToken(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    this.tokenExists.set(false);
   }
 
   login(): void {
@@ -67,18 +74,28 @@ export class AuthService {
   }
 
   loadCurrentUser(): void {
+    console.log('[AuthService] loadCurrentUser - Starting...');
     this.loading.set(true);
     this.http.get<{ user: CurrentUser }>(`${environment.apiUrl}/auth/me`).subscribe({
       next: (response) => {
+        console.log('[AuthService] loadCurrentUser - Success:', response.user.username);
         this.currentUser.set(response.user);
         this.loading.set(false);
       },
       error: (error) => {
-        console.error('Failed to load user:', error);
-        this.removeToken();
-        this.currentUser.set(null);
+        console.error('[AuthService] loadCurrentUser - Error:', error.status, error.message);
         this.loading.set(false);
-        this.router.navigate(['/login']);
+
+        // Only clear token and redirect for authentication errors (401)
+        // The interceptor already handles 401, but we check here too for safety
+        if (error.status === 401) {
+          console.log('[AuthService] loadCurrentUser - 401, removing token');
+          this.removeToken();
+          this.currentUser.set(null);
+          this.router.navigate(['/login']);
+        }
+        // For other errors (network, server down, etc.), keep the token
+        // and let the user retry or the app recover
       }
     });
   }
