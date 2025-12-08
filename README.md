@@ -87,6 +87,10 @@ helm install lan-party-manager ./helm/lan-party-manager -f custom-values.yaml
 | GET | `/api/v1/participants` | Alle Teilnehmer |
 | POST | `/api/v1/participants` | Teilnehmer erstellen |
 
+## 🎨 Credits
+
+Achievement-Icons von [Game-icons.net](https://game-icons.net) unter [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) Lizenz.
+
 ## 📄 Lizenz
 
 MIT

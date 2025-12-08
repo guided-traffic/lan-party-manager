@@ -87,7 +87,9 @@ import { Achievement } from '../../models/achievement.model';
                   (click)="selectAchievement(achievement)"
                 >
                   @if (achievement.image_url) {
-                    <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon positive" />
+                    <div class="achievement-icon-wrapper gold-dust">
+                      <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon positive" />
+                    </div>
                   }
                   <span class="achievement-name">{{ achievement.name }}</span>
                   <span class="achievement-desc">{{ achievement.description }}</span>
@@ -106,7 +108,9 @@ import { Achievement } from '../../models/achievement.model';
                   (click)="selectAchievement(achievement)"
                 >
                   @if (achievement.image_url) {
-                    <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon negative" />
+                    <div class="achievement-icon-wrapper shatter-dust">
+                      <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon negative" />
+                    </div>
                   }
                   <span class="achievement-name">{{ achievement.name }}</span>
                   <span class="achievement-desc">{{ achievement.description }}</span>

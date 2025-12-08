@@ -30,7 +30,9 @@ import { AchievementLeaderboard } from '../../models/vote.model';
               <div class="leaderboard-card positive">
                 <div class="card-header">
                   @if (item.achievement.image_url) {
-                    <img [src]="item.achievement.image_url" [alt]="item.achievement.name" class="achievement-icon" />
+                    <div class="achievement-icon-wrapper gold-dust">
+                      <img [src]="item.achievement.image_url" [alt]="item.achievement.name" class="achievement-icon" />
+                    </div>
                   }
                   <div class="card-header-text">
                     <h3 class="achievement-name">{{ item.achievement.name }}</h3>
@@ -75,7 +77,9 @@ import { AchievementLeaderboard } from '../../models/vote.model';
               <div class="leaderboard-card negative">
                 <div class="card-header">
                   @if (item.achievement.image_url) {
-                    <img [src]="item.achievement.image_url" [alt]="item.achievement.name" class="achievement-icon" />
+                    <div class="achievement-icon-wrapper shatter-dust">
+                      <img [src]="item.achievement.image_url" [alt]="item.achievement.name" class="achievement-icon" />
+                    </div>
                   }
                   <div class="card-header-text">
                     <h3 class="achievement-name">{{ item.achievement.name }}</h3>
@@ -169,12 +173,15 @@ import { AchievementLeaderboard } from '../../models/vote.model';
       background: $bg-tertiary;
       border-bottom: 1px solid $border-color;
 
+      .achievement-icon-wrapper {
+        flex-shrink: 0;
+      }
+
       .achievement-icon {
         width: 48px;
         height: 48px;
         padding: 8px;
         border-radius: $radius-sm;
-        flex-shrink: 0;
       }
 
       .card-header-text {
