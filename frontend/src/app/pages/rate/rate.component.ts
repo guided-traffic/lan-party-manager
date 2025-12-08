@@ -1,10 +1,11 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UserService } from '../../services/user.service';
 import { AchievementService } from '../../services/achievement.service';
 import { VoteService } from '../../services/vote.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { SettingsService } from '../../services/settings.service';
 import { User } from '../../models/user.model';
 import { Achievement } from '../../models/achievement.model';
 
@@ -18,6 +19,16 @@ import { Achievement } from '../../models/achievement.model';
         <h1 class="page-title">Spieler bewerten</h1>
         <p class="page-subtitle">Wähle einen Spieler und ein Achievement aus</p>
       </div>
+
+      @if (votingPaused()) {
+        <div class="paused-banner">
+          <span class="paused-icon">⏸️</span>
+          <div class="paused-text">
+            <strong>Voting ist pausiert</strong>
+            <p>Der Admin hat das Voting vorübergehend deaktiviert. Bitte warte, bis es wieder aktiviert wird.</p>
+          </div>
+        </div>
+      }
 
       <!-- Step 1: Select Player -->
       <div class="section">
@@ -136,12 +147,14 @@ import { Achievement } from '../../models/achievement.model';
 
             <button
               class="btn btn-primary btn-lg"
-              [disabled]="submitting() || auth.credits() < 1"
+              [disabled]="submitting() || auth.credits() < 1 || votingPaused()"
               (click)="submitVote()"
             >
               @if (submitting()) {
                 <div class="spinner"></div>
                 Wird gesendet...
+              } @else if (votingPaused()) {
+                Voting pausiert
               } @else if (auth.credits() < 1) {
                 Nicht genug Credits
               } @else {
@@ -155,6 +168,36 @@ import { Achievement } from '../../models/achievement.model';
   `,
   styles: [`
     @use 'variables' as *;
+
+    .paused-banner {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 24px;
+      background: rgba(#f59e0b, 0.15);
+      border: 2px solid #f59e0b;
+      border-radius: $radius-lg;
+      margin-bottom: 32px;
+
+      .paused-icon {
+        font-size: 32px;
+      }
+
+      .paused-text {
+        strong {
+          display: block;
+          font-size: 16px;
+          color: #f59e0b;
+          margin-bottom: 4px;
+        }
+
+        p {
+          font-size: 14px;
+          color: $text-secondary;
+          margin: 0;
+        }
+      }
+    }
 
     .section {
       margin-bottom: 40px;
@@ -329,11 +372,15 @@ export class RateComponent implements OnInit {
   private achievementService = inject(AchievementService);
   private voteService = inject(VoteService);
   private notifications = inject(NotificationService);
+  private settingsService = inject(SettingsService);
   auth = inject(AuthService);
 
   users = signal<User[]>([]);
   positiveAchievements = signal<Achievement[]>([]);
   negativeAchievements = signal<Achievement[]>([]);
+
+  // Expose votingPaused from SettingsService
+  votingPaused = this.settingsService.votingPaused;
 
   loadingUsers = signal(true);
   submitting = signal(false);

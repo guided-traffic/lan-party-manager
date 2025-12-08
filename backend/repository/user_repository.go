@@ -151,6 +151,42 @@ func (r *UserRepository) DeductCredit(userID uint64) error {
 	return nil
 }
 
+// ResetAllCredits sets all users' credits to 0
+func (r *UserRepository) ResetAllCredits() (int64, error) {
+	result, err := database.DB.Exec(`
+		UPDATE users
+		SET credits = 0, updated_at = CURRENT_TIMESTAMP`)
+	if err != nil {
+		return 0, fmt.Errorf("failed to reset all credits: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return rowsAffected, nil
+}
+
+// GiveEveryoneCredit gives each user 1 credit (respecting max credits)
+func (r *UserRepository) GiveEveryoneCredit(maxCredits int) (int64, error) {
+	result, err := database.DB.Exec(`
+		UPDATE users
+		SET credits = MIN(credits + 1, ?), updated_at = CURRENT_TIMESTAMP
+		WHERE credits < ?`,
+		maxCredits, maxCredits)
+	if err != nil {
+		return 0, fmt.Errorf("failed to give everyone credit: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return rowsAffected, nil
+}
+
 // FindOrCreate finds a user by Steam ID or creates a new one
 func (r *UserRepository) FindOrCreate(steamID, username, avatarURL, avatarSmall, profileURL string) (*models.User, bool, error) {
 	// Try to find existing user

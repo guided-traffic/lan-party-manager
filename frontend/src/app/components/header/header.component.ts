@@ -4,6 +4,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { NotificationService } from '../../services/notification.service';
+import { SettingsService } from '../../services/settings.service';
 import { Subscription, interval } from 'rxjs';
 
 @Component({
@@ -63,6 +64,7 @@ import { Subscription, interval } from 'rxjs';
                   </div>
                 }
               </div>
+              <span class="credits-countdown" [class.full]="auth.credits() >= maxCredits()">{{ countdownDisplay() }}</span>
               <span class="credits-count">{{ auth.credits() }}</span>
             </div>
 
@@ -258,6 +260,20 @@ import { Subscription, interval } from 'rxjs';
         }
       }
 
+      .credits-countdown {
+        font-size: 12px;
+        font-weight: 500;
+        font-family: monospace;
+        color: $text-muted;
+        min-width: 32px;
+        text-align: center;
+
+        &.full {
+          color: $text-muted;
+          opacity: 0.5;
+        }
+      }
+
       .credits-count {
         font-size: 13px;
         font-weight: 600;
@@ -402,8 +418,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   ws = inject(WebSocketService);
   private notifications = inject(NotificationService);
+  private settingsService = inject(SettingsService);
   private subscription?: Subscription;
   private settingsSubscription?: Subscription;
+  private creditsResetSubscription?: Subscription;
+  private creditsGivenSubscription?: Subscription;
   private timerSubscription?: Subscription;
 
   menuOpen = false;
@@ -437,6 +456,20 @@ export class HeaderComponent implements OnInit, OnDestroy {
     if (seconds <= 0 || this.auth.credits() >= this.maxCredits()) return 0;
     const progress = ((intervalSeconds - seconds) / intervalSeconds) * 100;
     return Math.max(0, Math.min(100, progress));
+  });
+
+  // Formatted countdown display (m:ss or -:--)
+  countdownDisplay = computed(() => {
+    if (this.auth.credits() >= this.maxCredits()) {
+      return '-:--';
+    }
+    const seconds = this.secondsUntilCredit();
+    if (seconds <= 0) {
+      return '0:00';
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   });
 
   constructor() {
@@ -475,13 +508,35 @@ export class HeaderComponent implements OnInit, OnDestroy {
       console.log('Settings updated via WebSocket:', settings);
       this.settingsMaxCredits.set(settings.credit_max);
       this.settingsCreditIntervalSeconds.set(settings.credit_interval_minutes * 60);
-      this.notifications.info('⚙️ Einstellungen aktualisiert', 'Credit-Einstellungen wurden vom Admin geändert');
+      this.settingsService.applySettingsUpdate(settings);
+
+      if (settings.voting_paused) {
+        this.notifications.info('⏸️ Voting pausiert', 'Der Admin hat das Voting pausiert');
+      } else {
+        this.notifications.info('▶️ Voting fortgesetzt', 'Das Voting wurde wieder aktiviert');
+      }
+    });
+
+    // Listen for credits reset from admin
+    this.creditsResetSubscription = this.ws.creditsReset$.subscribe(() => {
+      console.log('Credits reset via WebSocket');
+      this.auth.refreshUser();
+      this.notifications.info('🔄 Credits zurückgesetzt', 'Der Admin hat alle Credits auf 0 gesetzt');
+    });
+
+    // Listen for credits given from admin
+    this.creditsGivenSubscription = this.ws.creditsGiven$.subscribe(() => {
+      console.log('Credits given via WebSocket');
+      this.auth.refreshUser();
+      this.notifications.success('🎁 Credit erhalten', 'Der Admin hat dir 1 Credit gegeben');
     });
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
     this.settingsSubscription?.unsubscribe();
+    this.creditsResetSubscription?.unsubscribe();
+    this.creditsGivenSubscription?.unsubscribe();
     this.timerSubscription?.unsubscribe();
   }
 

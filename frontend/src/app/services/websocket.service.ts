@@ -2,7 +2,7 @@ import { Injectable, signal, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { ConnectionStatusService } from './connection-status.service';
-import { WebSocketMessage, VotePayload, SettingsPayload } from '../models/websocket.model';
+import { WebSocketMessage, VotePayload, SettingsPayload, CreditActionPayload } from '../models/websocket.model';
 import { Subject, Observable } from 'rxjs';
 
 @Injectable({
@@ -22,6 +22,8 @@ export class WebSocketService {
   readonly voteReceived$ = new Subject<VotePayload>();
   readonly newVote$ = new Subject<VotePayload>();
   readonly settingsUpdate$ = new Subject<SettingsPayload>();
+  readonly creditsReset$ = new Subject<CreditActionPayload>();
+  readonly creditsGiven$ = new Subject<CreditActionPayload>();
 
   // General messages observable for timeline component
   private messagesSubject = new Subject<{ type: string; payload: VotePayload }>();
@@ -103,7 +105,7 @@ export class WebSocketService {
     }
   }
 
-  private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload>): void {
+  private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload | CreditActionPayload>): void {
     switch (message.type) {
       case 'new_vote':
         console.log('WebSocket: New vote received', message.payload);
@@ -113,6 +115,14 @@ export class WebSocketService {
       case 'settings_update':
         console.log('WebSocket: Settings update received', message.payload);
         this.settingsUpdate$.next(message.payload as SettingsPayload);
+        break;
+      case 'credits_reset':
+        console.log('WebSocket: Credits reset received', message.payload);
+        this.creditsReset$.next(message.payload as CreditActionPayload);
+        break;
+      case 'credits_given':
+        console.log('WebSocket: Credits given received', message.payload);
+        this.creditsGiven$.next(message.payload as CreditActionPayload);
         break;
       default:
         console.log('WebSocket: Unknown message type', message.type);

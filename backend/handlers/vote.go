@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/guided-traffic/lan-party-manager/backend/config"
 	"github.com/guided-traffic/lan-party-manager/backend/middleware"
 	"github.com/guided-traffic/lan-party-manager/backend/models"
 	"github.com/guided-traffic/lan-party-manager/backend/repository"
@@ -18,21 +19,31 @@ type VoteHandler struct {
 	userRepo      *repository.UserRepository
 	creditService *services.CreditService
 	wsHub         *websocket.Hub
+	cfg           *config.Config
 }
 
 // NewVoteHandler creates a new vote handler
-func NewVoteHandler(voteRepo *repository.VoteRepository, userRepo *repository.UserRepository, creditService *services.CreditService, wsHub *websocket.Hub) *VoteHandler {
+func NewVoteHandler(voteRepo *repository.VoteRepository, userRepo *repository.UserRepository, creditService *services.CreditService, wsHub *websocket.Hub, cfg *config.Config) *VoteHandler {
 	return &VoteHandler{
 		voteRepo:      voteRepo,
 		userRepo:      userRepo,
 		creditService: creditService,
 		wsHub:         wsHub,
+		cfg:           cfg,
 	}
 }
 
 // Create creates a new vote
 // POST /api/v1/votes
 func (h *VoteHandler) Create(c *gin.Context) {
+	// Check if voting is paused
+	if h.cfg.VotingPaused {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Voting is currently paused by admin",
+		})
+		return
+	}
+
 	// Get current user
 	fromUserID, ok := middleware.GetUserID(c)
 	if !ok {

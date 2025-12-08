@@ -45,9 +45,9 @@ func main() {
 	authHandler := handlers.NewAuthHandler(cfg, userRepo, creditService)
 	userHandler := handlers.NewUserHandler(userRepo)
 	achievementHandler := handlers.NewAchievementHandler()
-	voteHandler := handlers.NewVoteHandler(voteRepo, userRepo, creditService, wsHub)
+	voteHandler := handlers.NewVoteHandler(voteRepo, userRepo, creditService, wsHub, cfg)
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
-	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub)
+	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo)
 
 	r := gin.Default()
 
@@ -101,6 +101,9 @@ func main() {
 			protected.POST("/votes", voteHandler.Create)
 			protected.GET("/votes", voteHandler.GetTimeline)
 
+			// Voting status (public for authenticated users)
+			protected.GET("/voting-status", settingsHandler.GetVotingStatus)
+
 			// Leaderboard
 			protected.GET("/leaderboard", voteHandler.GetLeaderboard)
 
@@ -110,6 +113,8 @@ func main() {
 			{
 				admin.GET("/settings", settingsHandler.GetSettings)
 				admin.PUT("/settings", settingsHandler.UpdateSettings)
+				admin.POST("/credits/reset", settingsHandler.ResetAllCredits)
+				admin.POST("/credits/give", settingsHandler.GiveEveryoneCredit)
 			}
 		}
 	}

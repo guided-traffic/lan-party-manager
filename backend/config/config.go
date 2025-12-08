@@ -27,6 +27,9 @@ type Config struct {
 	CreditIntervalMinutes int
 	CreditMax             int
 
+	// Voting
+	VotingPaused bool
+
 	// Admin
 	AdminSteamIDs []string
 }

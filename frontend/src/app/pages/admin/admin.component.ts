@@ -104,6 +104,63 @@ import { NotificationService } from '../../services/notification.service';
               Die Credits-Anzeige aller Spieler wird automatisch aktualisiert.
             </p>
           </div>
+
+          <div class="voting-control-card" [class.paused]="votingPaused()">
+            <div class="voting-status">
+              <span class="status-icon">{{ votingPaused() ? '⏸️' : '▶️' }}</span>
+              <div class="status-text">
+                <h3>Voting Status</h3>
+                <p>{{ votingPaused() ? 'Voting ist pausiert - niemand kann bewerten' : 'Voting ist aktiv' }}</p>
+              </div>
+            </div>
+            <button
+              (click)="toggleVotingPause()"
+              [disabled]="togglingPause()"
+              class="toggle-pause-btn"
+              [class.paused]="votingPaused()"
+            >
+              @if (togglingPause()) {
+                <span class="btn-spinner"></span>
+              } @else if (votingPaused()) {
+                ▶️ Voting fortsetzen
+              } @else {
+                ⏸️ Voting pausieren
+              }
+            </button>
+          </div>
+
+          <div class="credit-actions-card">
+            <h3>💰 Credit Aktionen</h3>
+            <p class="action-description">
+              Manuelle Credit-Verwaltung für alle Spieler gleichzeitig.
+            </p>
+            <div class="credit-actions">
+              <button
+                (click)="giveEveryoneCredit()"
+                [disabled]="givingCredits()"
+                class="give-credit-btn"
+              >
+                @if (givingCredits()) {
+                  <span class="btn-spinner"></span>
+                  Wird verteilt...
+                } @else {
+                  🎁 Jedem 1 Credit geben
+                }
+              </button>
+              <button
+                (click)="resetAllCredits()"
+                [disabled]="resettingCredits()"
+                class="reset-credits-btn"
+              >
+                @if (resettingCredits()) {
+                  <span class="btn-spinner"></span>
+                  Wird zurückgesetzt...
+                } @else {
+                  🔄 Alle Credits auf 0 setzen
+                }
+              </button>
+            </div>
+          </div>
         }
       </div>
     </div>
@@ -334,6 +391,7 @@ import { NotificationService } from '../../services/notification.service';
       border: 1px solid rgba($accent-primary, 0.2);
       border-radius: $radius-lg;
       padding: 20px;
+      margin-bottom: 24px;
 
       h3 {
         font-size: 16px;
@@ -353,6 +411,164 @@ import { NotificationService } from '../../services/notification.service';
       }
     }
 
+    .credit-actions-card {
+      background: $bg-card;
+      border: 1px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 24px;
+
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 8px;
+      }
+
+      .action-description {
+        font-size: 14px;
+        color: $text-muted;
+        margin-bottom: 20px;
+      }
+    }
+
+    .credit-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .give-credit-btn {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .reset-credits-btn {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .voting-control-card {
+      background: $bg-card;
+      border: 2px solid #10b981;
+      border-radius: $radius-lg;
+      padding: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+
+      &.paused {
+        border-color: $accent-warning;
+        background: rgba($accent-warning, 0.05);
+      }
+    }
+
+    .voting-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .status-icon {
+        font-size: 32px;
+      }
+
+      .status-text {
+        h3 {
+          font-size: 16px;
+          font-weight: 600;
+          color: $text-primary;
+          margin-bottom: 4px;
+        }
+
+        p {
+          font-size: 14px;
+          color: $text-secondary;
+        }
+      }
+    }
+
+    .toggle-pause-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+      white-space: nowrap;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+      }
+
+      &.paused {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+
+        &:hover:not(:disabled) {
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
@@ -367,6 +583,10 @@ export class AdminComponent implements OnInit {
   loading = signal(true);
   saving = signal(false);
   error = signal<string | null>(null);
+  resettingCredits = signal(false);
+  givingCredits = signal(false);
+  togglingPause = signal(false);
+  votingPaused = signal(false);
 
   // Form values
   creditIntervalMinutes = 10;
@@ -395,6 +615,7 @@ export class AdminComponent implements OnInit {
       next: (settings) => {
         this.creditIntervalMinutes = settings.credit_interval_minutes;
         this.creditMax = settings.credit_max;
+        this.votingPaused.set(settings.voting_paused);
         this.originalCreditIntervalMinutes = settings.credit_interval_minutes;
         this.originalCreditMax = settings.credit_max;
         this.loading.set(false);
@@ -436,5 +657,61 @@ export class AdminComponent implements OnInit {
   hasChanges(): boolean {
     return this.creditIntervalMinutes !== this.originalCreditIntervalMinutes ||
            this.creditMax !== this.originalCreditMax;
+  }
+
+  resetAllCredits(): void {
+    if (!confirm('Bist du sicher? Alle Credits aller Spieler werden auf 0 gesetzt.')) {
+      return;
+    }
+
+    this.resettingCredits.set(true);
+    this.settingsService.resetAllCredits().subscribe({
+      next: (response) => {
+        this.resettingCredits.set(false);
+        this.notifications.success('🔄 Credits zurückgesetzt', `${response.users_affected} Spieler betroffen`);
+      },
+      error: (err) => {
+        console.error('Failed to reset credits:', err);
+        this.resettingCredits.set(false);
+        this.notifications.error('❌ Fehler', 'Credits konnten nicht zurückgesetzt werden');
+      }
+    });
+  }
+
+  giveEveryoneCredit(): void {
+    this.givingCredits.set(true);
+    this.settingsService.giveEveryoneCredit().subscribe({
+      next: (response) => {
+        this.givingCredits.set(false);
+        this.notifications.success('🎁 Credit verteilt', `${response.users_affected} Spieler haben 1 Credit erhalten`);
+      },
+      error: (err) => {
+        console.error('Failed to give credits:', err);
+        this.givingCredits.set(false);
+        this.notifications.error('❌ Fehler', 'Credits konnten nicht verteilt werden');
+      }
+    });
+  }
+
+  toggleVotingPause(): void {
+    const newPausedState = !this.votingPaused();
+    this.togglingPause.set(true);
+
+    this.settingsService.updateSettings({ voting_paused: newPausedState }).subscribe({
+      next: (settings) => {
+        this.votingPaused.set(settings.voting_paused);
+        this.togglingPause.set(false);
+        if (settings.voting_paused) {
+          this.notifications.success('⏸️ Voting pausiert', 'Niemand kann jetzt Bewertungen abgeben');
+        } else {
+          this.notifications.success('▶️ Voting fortgesetzt', 'Bewertungen sind wieder möglich');
+        }
+      },
+      error: (err) => {
+        console.error('Failed to toggle voting pause:', err);
+        this.togglingPause.set(false);
+        this.notifications.error('❌ Fehler', 'Status konnte nicht geändert werden');
+      }
+    });
   }
 }

@@ -20,6 +20,10 @@ const (
 	MessageTypeUserJoined MessageType = "user_joined"
 	// MessageTypeSettingsUpdate is sent when admin changes settings
 	MessageTypeSettingsUpdate MessageType = "settings_update"
+	// MessageTypeCreditsReset is sent when admin resets all credits
+	MessageTypeCreditsReset MessageType = "credits_reset"
+	// MessageTypeCreditsGiven is sent when admin gives everyone a credit
+	MessageTypeCreditsGiven MessageType = "credits_given"
 	// MessageTypeError is sent when an error occurs
 	MessageTypeError MessageType = "error"
 )
@@ -47,8 +51,9 @@ type VotePayload struct {
 
 // SettingsPayload contains settings information for broadcasts
 type SettingsPayload struct {
-	CreditIntervalMinutes int `json:"credit_interval_minutes"`
-	CreditMax             int `json:"credit_max"`
+	CreditIntervalMinutes int  `json:"credit_interval_minutes"`
+	CreditMax             int  `json:"credit_max"`
+	VotingPaused          bool `json:"voting_paused"`
 }
 
 // Client represents a connected WebSocket client
@@ -221,4 +226,38 @@ func (h *Hub) BroadcastSettingsUpdate(payload *SettingsPayload) {
 
 	h.broadcast <- data
 	log.Printf("WebSocket: Broadcasted settings update to all clients")
+}
+
+// BroadcastCreditsReset notifies all clients that credits have been reset
+func (h *Hub) BroadcastCreditsReset() {
+	msg := Message{
+		Type:    MessageTypeCreditsReset,
+		Payload: map[string]string{"message": "Alle Credits wurden zurückgesetzt"},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal credits reset message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted credits reset to all clients")
+}
+
+// BroadcastCreditsGiven notifies all clients that they received a credit
+func (h *Hub) BroadcastCreditsGiven() {
+	msg := Message{
+		Type:    MessageTypeCreditsGiven,
+		Payload: map[string]string{"message": "Du hast 1 Credit erhalten"},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal credits given message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted credits given to all clients")
 }
