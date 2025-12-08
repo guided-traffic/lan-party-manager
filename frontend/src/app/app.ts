@@ -1,9 +1,10 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, effect } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { HeaderComponent } from './components/header/header.component';
 import { NotificationsComponent } from './components/notifications/notifications.component';
 import { AuthService } from './services/auth.service';
+import { WebSocketService } from './services/websocket.service';
 
 @Component({
   selector: 'app-root',
@@ -12,16 +13,33 @@ import { AuthService } from './services/auth.service';
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
-export class App implements OnInit {
+export class App implements OnInit, OnDestroy {
   private authService = inject(AuthService);
+  private wsService = inject(WebSocketService);
 
   get isAuthenticated(): boolean {
     return this.authService.isAuthenticated();
   }
 
+  constructor() {
+    // Connect/disconnect WebSocket based on authentication state
+    effect(() => {
+      const isAuth = this.authService.isAuthenticated();
+      const user = this.authService.user();
+
+      if (isAuth && user) {
+        this.wsService.connect();
+      } else if (!isAuth) {
+        this.wsService.disconnect();
+      }
+    });
+  }
+
   ngOnInit(): void {
-    // AuthService constructor already handles token check and user loading
-    // No need to call checkAuth() again here
     console.log('[App] ngOnInit - isAuthenticated:', this.isAuthenticated, '- hasToken:', !!this.authService.getToken());
+  }
+
+  ngOnDestroy(): void {
+    this.wsService.disconnect();
   }
 }

@@ -143,7 +143,7 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		log.Printf("Failed to get vote details: %v", err)
 	}
 
-	// Broadcast vote to WebSocket clients
+	// Broadcast vote to all WebSocket clients
 	if voteDetails != nil && h.wsHub != nil {
 		achievement, _ := models.GetAchievement(voteDetails.AchievementID)
 		payload := &websocket.VotePayload{
@@ -160,11 +160,8 @@ func (h *VoteHandler) Create(c *gin.Context) {
 			CreatedAt:     voteDetails.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 
-		// Broadcast to all clients (for timeline updates)
+		// Broadcast to all clients - frontend decides who shows notification popup
 		h.wsHub.BroadcastVote(payload)
-
-		// Send personal notification to the recipient
-		h.wsHub.NotifyVoteReceived(toUser.ID, payload)
 	}
 
 	// Return updated credits

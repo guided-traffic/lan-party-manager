@@ -2,7 +2,6 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
-import { WebSocketService } from '../../services/websocket.service';
 
 @Component({
   selector: 'app-auth-callback',
@@ -85,7 +84,6 @@ export class AuthCallbackComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
-  private ws = inject(WebSocketService);
 
   error: string | null = null;
 
@@ -101,9 +99,9 @@ export class AuthCallbackComponent implements OnInit {
     if (token) {
       this.auth.handleCallback(token);
 
-      // Connect WebSocket after successful login
+      // Navigate to timeline after successful login
+      // WebSocket connection is handled by App component
       setTimeout(() => {
-        this.ws.connect();
         this.router.navigate(['/timeline']);
       }, 500);
     } else {

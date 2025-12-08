@@ -450,22 +450,24 @@ export class HeaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Connect to WebSocket when authenticated
+    // Initialize credit timer when authenticated
     if (this.auth.isAuthenticated()) {
-      this.ws.connect();
       this.initCreditTimer();
     }
 
-    // Listen for vote notifications
-    this.subscription = this.ws.voteReceived$.subscribe((payload) => {
-      this.notifications.voteReceived(
-        payload.from_username,
-        payload.achievement_name,
-        payload.from_avatar,
-        payload.is_positive
-      );
-      // Refresh user data to update credits
-      this.auth.refreshUser();
+    // Listen for vote notifications - show popup only if current user is the recipient
+    this.subscription = this.ws.newVote$.subscribe((payload) => {
+      const currentUser = this.auth.user();
+      if (currentUser && payload.to_user_id === currentUser.id) {
+        this.notifications.voteReceived(
+          payload.from_username,
+          payload.achievement_name,
+          payload.from_avatar,
+          payload.is_positive
+        );
+        // Refresh user data to update any stats
+        this.auth.refreshUser();
+      }
     });
 
     // Listen for settings updates from admin

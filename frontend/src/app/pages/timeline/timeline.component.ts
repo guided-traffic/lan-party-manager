@@ -214,9 +214,10 @@ export class TimelineComponent implements OnInit, OnDestroy {
   }
 
   subscribeToLiveVotes(): void {
+    // Subscribe to new_vote broadcasts - updates timeline for all users
     this.wsSubscription = this.wsService.newVote$.subscribe((payload) => {
-      // When a new vote is broadcasted, reload the timeline to get full vote details
-      // This is simpler than trying to construct a full Vote object from VotePayload
+      console.log('Timeline: Received new vote', payload.vote_id);
+      // Reload the timeline to get full vote details
       this.voteService.getAll().subscribe({
         next: (votes) => {
           const currentVotes = this.votes();

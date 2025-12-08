@@ -167,6 +167,7 @@ func (h *Hub) BroadcastVote(payload *VotePayload) {
 		return
 	}
 
+	log.Printf("WebSocket: Broadcasting new_vote to %d clients", h.GetConnectedUserCount())
 	h.broadcast <- data
 }
 
@@ -183,6 +184,7 @@ func (h *Hub) NotifyVoteReceived(toUserID uint64, payload *VotePayload) {
 		return
 	}
 
+	log.Printf("WebSocket: Sending vote_received notification to user %d (connected: %v)", toUserID, h.IsUserConnected(toUserID))
 	h.sendToUser <- &UserMessage{
 		UserID:  toUserID,
 		Message: data,

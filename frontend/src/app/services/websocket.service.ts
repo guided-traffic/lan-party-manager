@@ -12,6 +12,7 @@ export class WebSocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 3000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   private connected = signal(false);
   readonly isConnected = this.connected.asReadonly();
@@ -34,64 +35,88 @@ export class WebSocketService {
       return;
     }
 
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket: Already connected');
-      return;
+    // Check if already connected or connecting
+    if (this.socket) {
+      if (this.socket.readyState === WebSocket.OPEN) {
+        console.log('WebSocket: Already connected');
+        return;
+      }
+      if (this.socket.readyState === WebSocket.CONNECTING) {
+        console.log('WebSocket: Connection in progress');
+        return;
+      }
+      // Close any existing socket that's closing or closed
+      this.socket = null;
+    }
+
+    // Clear any pending reconnect timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
     const wsUrl = `${environment.wsUrl}?token=${token}`;
-    console.log('WebSocket: Connecting...');
+    console.log('WebSocket: Connecting to', wsUrl);
 
-    this.socket = new WebSocket(wsUrl);
+    try {
+      this.socket = new WebSocket(wsUrl);
 
-    this.socket.onopen = () => {
-      console.log('WebSocket: Connected');
-      this.connected.set(true);
-      this.reconnectAttempts = 0;
-    };
+      this.socket.onopen = () => {
+        console.log('WebSocket: Connected successfully');
+        this.connected.set(true);
+        this.reconnectAttempts = 0;
+      };
 
-    this.socket.onmessage = (event) => {
-      try {
-        const message: WebSocketMessage<VotePayload> = JSON.parse(event.data);
-        this.handleMessage(message);
-      } catch (error) {
-        console.error('WebSocket: Failed to parse message', error);
-      }
-    };
+      this.socket.onmessage = (event) => {
+        try {
+          const message: WebSocketMessage<VotePayload> = JSON.parse(event.data);
+          console.log('WebSocket: Received message', message.type);
+          this.handleMessage(message);
+        } catch (error) {
+          console.error('WebSocket: Failed to parse message', error, event.data);
+        }
+      };
 
-    this.socket.onclose = (event) => {
-      console.log('WebSocket: Disconnected', event.code, event.reason);
-      this.connected.set(false);
+      this.socket.onclose = (event) => {
+        console.log('WebSocket: Disconnected', event.code, event.reason);
+        this.connected.set(false);
+        this.socket = null;
+
+        // Attempt to reconnect if not a normal closure and user is still authenticated
+        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts && this.authService.isAuthenticated()) {
+          this.scheduleReconnect();
+        }
+      };
+
+      this.socket.onerror = (error) => {
+        console.error('WebSocket: Error', error);
+      };
+    } catch (error) {
+      console.error('WebSocket: Failed to create connection', error);
       this.socket = null;
-
-      // Attempt to reconnect if not a normal closure
-      if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-        this.scheduleReconnect();
-      }
-    };
-
-    this.socket.onerror = (error) => {
-      console.error('WebSocket: Error', error);
-    };
+    }
   }
 
   disconnect(): void {
+    // Clear any pending reconnect timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     if (this.socket) {
+      console.log('WebSocket: Disconnecting...');
       this.socket.close(1000, 'User logout');
       this.socket = null;
       this.connected.set(false);
     }
+    this.reconnectAttempts = 0;
   }
 
   private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload>): void {
     switch (message.type) {
-      case 'vote_received':
-        console.log('WebSocket: Vote received notification', message.payload);
-        this.voteReceived$.next(message.payload as VotePayload);
-        this.messagesSubject.next({ type: 'vote_received', payload: message.payload as VotePayload });
-        break;
       case 'new_vote':
-        console.log('WebSocket: New vote in timeline', message.payload);
+        console.log('WebSocket: New vote received', message.payload);
         this.newVote$.next(message.payload as VotePayload);
         this.messagesSubject.next({ type: 'new_vote', payload: message.payload as VotePayload });
         break;
@@ -107,9 +132,10 @@ export class WebSocketService {
   private scheduleReconnect(): void {
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * this.reconnectAttempts;
-    console.log(`WebSocket: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    console.log(`WebSocket: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       if (this.authService.isAuthenticated()) {
         this.connect();
       }
