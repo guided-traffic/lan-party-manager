@@ -12,4 +12,5 @@ export interface CurrentUser extends User {
   seconds_until_credit: number;
   credit_interval_seconds: number;
   credit_max: number;
+  is_admin: boolean;
 }

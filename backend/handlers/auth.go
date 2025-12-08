@@ -180,6 +180,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"seconds_until_credit":   int(timeUntilNext.Seconds()),
 			"credit_interval_seconds": h.cfg.CreditIntervalMinutes * 60,
 			"credit_max":             h.cfg.CreditMax,
+			"is_admin":               h.cfg.IsAdmin(user.SteamID),
 		},
 	})
 }

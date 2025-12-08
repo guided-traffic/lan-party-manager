@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
-import { WebSocketMessage, VotePayload } from '../models/websocket.model';
+import { WebSocketMessage, VotePayload, SettingsPayload } from '../models/websocket.model';
 import { Subject, Observable } from 'rxjs';
 
 @Injectable({
@@ -19,6 +19,7 @@ export class WebSocketService {
   // Subjects for different message types
   readonly voteReceived$ = new Subject<VotePayload>();
   readonly newVote$ = new Subject<VotePayload>();
+  readonly settingsUpdate$ = new Subject<SettingsPayload>();
 
   // General messages observable for timeline component
   private messagesSubject = new Subject<{ type: string; payload: VotePayload }>();
@@ -82,17 +83,21 @@ export class WebSocketService {
     }
   }
 
-  private handleMessage(message: WebSocketMessage<VotePayload>): void {
+  private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload>): void {
     switch (message.type) {
       case 'vote_received':
         console.log('WebSocket: Vote received notification', message.payload);
-        this.voteReceived$.next(message.payload);
-        this.messagesSubject.next({ type: 'vote_received', payload: message.payload });
+        this.voteReceived$.next(message.payload as VotePayload);
+        this.messagesSubject.next({ type: 'vote_received', payload: message.payload as VotePayload });
         break;
       case 'new_vote':
         console.log('WebSocket: New vote in timeline', message.payload);
-        this.newVote$.next(message.payload);
-        this.messagesSubject.next({ type: 'new_vote', payload: message.payload });
+        this.newVote$.next(message.payload as VotePayload);
+        this.messagesSubject.next({ type: 'new_vote', payload: message.payload as VotePayload });
+        break;
+      case 'settings_update':
+        console.log('WebSocket: Settings update received', message.payload);
+        this.settingsUpdate$.next(message.payload as SettingsPayload);
         break;
       default:
         console.log('WebSocket: Unknown message type', message.type);

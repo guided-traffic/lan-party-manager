@@ -47,6 +47,7 @@ func main() {
 	achievementHandler := handlers.NewAchievementHandler()
 	voteHandler := handlers.NewVoteHandler(voteRepo, userRepo, creditService, wsHub)
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
+	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub)
 
 	r := gin.Default()
 
@@ -102,6 +103,14 @@ func main() {
 
 			// Leaderboard
 			protected.GET("/leaderboard", voteHandler.GetLeaderboard)
+
+			// Admin routes (require admin privileges)
+			admin := protected.Group("/admin")
+			admin.Use(settingsHandler.AdminMiddleware())
+			{
+				admin.GET("/settings", settingsHandler.GetSettings)
+				admin.PUT("/settings", settingsHandler.UpdateSettings)
+			}
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -25,6 +26,9 @@ type Config struct {
 	// Credits
 	CreditIntervalMinutes int
 	CreditMax             int
+
+	// Admin
+	AdminSteamIDs []string
 }
 
 // Load reads configuration from environment variables
@@ -43,6 +47,7 @@ func Load() *Config {
 		JWTExpirationDays:    getEnvAsInt("JWT_EXPIRATION_DAYS", 7),
 		CreditIntervalMinutes: getEnvAsInt("CREDIT_INTERVAL_MINUTES", 10),
 		CreditMax:            getEnvAsInt("CREDIT_MAX", 10),
+		AdminSteamIDs:        getEnvAsStringSlice("ADMIN_STEAM_IDS", []string{}),
 	}
 
 	// Validate required configuration
@@ -77,4 +82,30 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvAsStringSlice reads an environment variable as a comma-separated list of strings
+func getEnvAsStringSlice(key string, defaultValue []string) []string {
+	if value, exists := os.LookupEnv(key); exists && value != "" {
+		parts := strings.Split(value, ",")
+		result := make([]string, 0, len(parts))
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		return result
+	}
+	return defaultValue
+}
+
+// IsAdmin checks if the given Steam ID is in the admin list
+func (c *Config) IsAdmin(steamID string) bool {
+	for _, adminID := range c.AdminSteamIDs {
+		if adminID == steamID {
+			return true
+		}
+	}
+	return false
 }

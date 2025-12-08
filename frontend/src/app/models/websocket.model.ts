@@ -1,4 +1,4 @@
-export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'error';
+export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'settings_update' | 'error';
 
 export interface WebSocketMessage<T = unknown> {
   type: WebSocketMessageType;
@@ -17,4 +17,9 @@ export interface VotePayload {
   achievement_name: string;
   is_positive: boolean;
   created_at: string;
+}
+
+export interface SettingsPayload {
+  credit_interval_minutes: number;
+  credit_max: number;
 }

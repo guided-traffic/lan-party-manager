@@ -33,6 +33,12 @@ import { Subscription, interval } from 'rxjs';
                 <span class="nav-icon">🏆</span>
                 Leaderboard
               </a>
+              @if (isAdmin()) {
+                <a routerLink="/admin" routerLinkActive="active" class="nav-link admin-link">
+                  <span class="nav-icon">⚙️</span>
+                  Admin
+                </a>
+              }
             </nav>
           }
         </div>
@@ -171,6 +177,12 @@ import { Subscription, interval } from 'rxjs';
       &.active {
         background: rgba($accent-primary, 0.15);
         color: $accent-primary;
+      }
+
+      &.admin-link {
+        border-left: 1px solid $border-color;
+        margin-left: 8px;
+        padding-left: 16px;
       }
 
       .nav-icon {
@@ -391,6 +403,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ws = inject(WebSocketService);
   private notifications = inject(NotificationService);
   private subscription?: Subscription;
+  private settingsSubscription?: Subscription;
   private timerSubscription?: Subscription;
 
   menuOpen = false;
@@ -399,9 +412,20 @@ export class HeaderComponent implements OnInit, OnDestroy {
   // Signal for tracking seconds until next credit
   private secondsUntilCredit = signal(0);
 
-  // Computed values from user data (with defaults)
-  maxCredits = computed(() => this.auth.user()?.credit_max ?? 10);
-  creditIntervalSeconds = computed(() => this.auth.user()?.credit_interval_seconds ?? 600);
+  // Signals for settings (can be overridden by WebSocket updates)
+  private settingsMaxCredits = signal<number | null>(null);
+  private settingsCreditIntervalSeconds = signal<number | null>(null);
+
+  // Computed: is the current user an admin?
+  isAdmin = computed(() => this.auth.user()?.is_admin ?? false);
+
+  // Computed values from user data (with settings override)
+  maxCredits = computed(() =>
+    this.settingsMaxCredits() ?? this.auth.user()?.credit_max ?? 10
+  );
+  creditIntervalSeconds = computed(() =>
+    this.settingsCreditIntervalSeconds() ?? this.auth.user()?.credit_interval_seconds ?? 600
+  );
 
   // Array of slot indices for the template
   creditSlots = computed(() => Array.from({ length: this.maxCredits() }, (_, i) => i));
@@ -443,10 +467,19 @@ export class HeaderComponent implements OnInit, OnDestroy {
       // Refresh user data to update credits
       this.auth.refreshUser();
     });
+
+    // Listen for settings updates from admin
+    this.settingsSubscription = this.ws.settingsUpdate$.subscribe((settings) => {
+      console.log('Settings updated via WebSocket:', settings);
+      this.settingsMaxCredits.set(settings.credit_max);
+      this.settingsCreditIntervalSeconds.set(settings.credit_interval_minutes * 60);
+      this.notifications.info('⚙️ Einstellungen aktualisiert', 'Credit-Einstellungen wurden vom Admin geändert');
+    });
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    this.settingsSubscription?.unsubscribe();
     this.timerSubscription?.unsubscribe();
   }
 

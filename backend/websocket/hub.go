@@ -18,6 +18,8 @@ const (
 	MessageTypeNewVote MessageType = "new_vote"
 	// MessageTypeUserJoined is sent when a new user joins
 	MessageTypeUserJoined MessageType = "user_joined"
+	// MessageTypeSettingsUpdate is sent when admin changes settings
+	MessageTypeSettingsUpdate MessageType = "settings_update"
 	// MessageTypeError is sent when an error occurs
 	MessageTypeError MessageType = "error"
 )
@@ -41,6 +43,12 @@ type VotePayload struct {
 	Achievement   string `json:"achievement_name"`
 	IsPositive    bool   `json:"is_positive"`
 	CreatedAt     string `json:"created_at"`
+}
+
+// SettingsPayload contains settings information for broadcasts
+type SettingsPayload struct {
+	CreditIntervalMinutes int `json:"credit_interval_minutes"`
+	CreditMax             int `json:"credit_max"`
 }
 
 // Client represents a connected WebSocket client
@@ -194,4 +202,21 @@ func (h *Hub) IsUserConnected(userID uint64) bool {
 	defer h.mutex.RUnlock()
 	_, ok := h.clients[userID]
 	return ok
+}
+
+// BroadcastSettingsUpdate sends settings update to all connected clients
+func (h *Hub) BroadcastSettingsUpdate(payload *SettingsPayload) {
+	msg := Message{
+		Type:    MessageTypeSettingsUpdate,
+		Payload: payload,
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal settings message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted settings update to all clients")
 }
