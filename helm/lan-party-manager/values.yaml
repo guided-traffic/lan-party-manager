@@ -1,0 +1,78 @@
+# Default values for lan-party-manager
+replicaCount: 1
+
+frontend:
+  image:
+    repository: lan-party-manager/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+backend:
+  image:
+    repository: lan-party-manager/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  env:
+    PORT: "8080"
+    FRONTEND_URL: "http://localhost:4200"
+    BACKEND_URL: "http://localhost:8080"
+    JWT_EXPIRATION_DAYS: "7"
+    CREDIT_INTERVAL_MINUTES: "10"
+    CREDIT_MAX: "10"
+
+# Secrets - DO NOT commit real values to git!
+# Use --set secrets.steamApiKey=xxx or a separate values file
+secrets:
+  create: true
+  # Steam Web API Key - get yours at https://steamcommunity.com/dev/apikey
+  steamApiKey: ""
+  # JWT Secret - generate with: openssl rand -base64 32
+  jwtSecret: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: lan-party.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

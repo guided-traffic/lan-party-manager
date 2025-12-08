@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "lan-party-manager.fullname" . }}-backend
+  labels:
+    {{- include "lan-party-manager.backendLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "lan-party-manager.backendSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "lan-party-manager.backendSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "lan-party-manager.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: backend
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.service.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "{{ .Values.backend.env.PORT }}"
+            - name: FRONTEND_URL
+              value: "{{ .Values.backend.env.FRONTEND_URL }}"
+            - name: BACKEND_URL
+              value: "{{ .Values.backend.env.BACKEND_URL }}"
+            - name: JWT_EXPIRATION_DAYS
+              value: "{{ .Values.backend.env.JWT_EXPIRATION_DAYS }}"
+            - name: CREDIT_INTERVAL_MINUTES
+              value: "{{ .Values.backend.env.CREDIT_INTERVAL_MINUTES }}"
+            - name: CREDIT_MAX
+              value: "{{ .Values.backend.env.CREDIT_MAX }}"
+            {{- if .Values.secrets.create }}
+            - name: STEAM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "lan-party-manager.fullname" . }}-secrets
+                  key: STEAM_API_KEY
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "lan-party-manager.fullname" . }}-secrets
+                  key: JWT_SECRET
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

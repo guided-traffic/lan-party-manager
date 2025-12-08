@@ -1,0 +1,9 @@
+@if (isAuthenticated) {
+  <app-header />
+}
+
+<main [class.with-header]="isAuthenticated">
+  <router-outlet />
+</main>
+
+<app-notifications />

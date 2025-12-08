@@ -1,0 +1,15 @@
+@use 'variables' as *;
+
+:host {
+  display: block;
+  min-height: 100vh;
+  background: $bg-primary;
+}
+
+main {
+  min-height: 100vh;
+
+  &.with-header {
+    padding-top: 80px; // Header height + margin
+  }
+}
