@@ -39,9 +39,17 @@ spec:
             - name: PORT
               value: "{{ .Values.backend.env.PORT }}"
             - name: FRONTEND_URL
+              {{- if and .Values.ingress.enabled .Values.ingress.host }}
+              value: "{{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}"
+              {{- else }}
               value: "{{ .Values.backend.env.FRONTEND_URL }}"
+              {{- end }}
             - name: BACKEND_URL
+              {{- if and .Values.ingress.enabled .Values.ingress.host }}
+              value: "{{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ .Values.ingress.host }}"
+              {{- else }}
               value: "{{ .Values.backend.env.BACKEND_URL }}"
+              {{- end }}
             - name: JWT_EXPIRATION_DAYS
               value: "{{ .Values.backend.env.JWT_EXPIRATION_DAYS }}"
             - name: CREDIT_INTERVAL_MINUTES

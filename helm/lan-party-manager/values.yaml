@@ -62,14 +62,19 @@ secrets:
 
 ingress:
   enabled: false
+  # Ingress class name (e.g., nginx, hpi-external)
   className: ""
+  # Host name for the ingress
+  host: lan-party.local
+  # Additional annotations
   annotations: {}
-  hosts:
-    - host: lan-party.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # kubernetes.io/ingress.class: nginx
+  # TLS configuration
+  tls:
+    enabled: false
+    # Secret name for TLS certificate (defaults to <fullname>-tls)
+    secretName: ""
 
 imagePullSecrets: []
 nameOverride: ""
