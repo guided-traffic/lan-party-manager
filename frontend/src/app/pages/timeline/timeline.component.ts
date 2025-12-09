@@ -67,8 +67,15 @@ import { Subscription } from 'rxjs';
                   </span>
                   bewertet
                 </div>
-                <div class="timeline-time">
-                  {{ formatTime(vote.created_at) }}
+                <div class="timeline-meta">
+                  <span class="timeline-points" [attr.title]="getPointsLabel(vote.points)">
+                    @for (i of getPointsArray(vote.points); track i) {
+                      <span class="credit-icon">💎</span>
+                    }
+                  </span>
+                  <span class="timeline-time">
+                    {{ formatTime(vote.created_at) }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -165,6 +172,24 @@ import { Subscription } from 'rxjs';
       .username {
         font-weight: 600;
         color: $text-primary;
+      }
+    }
+
+    .timeline-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: $text-muted;
+    }
+
+    .timeline-points {
+      display: flex;
+      gap: 2px;
+
+      .credit-icon {
+        font-size: 14px;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
       }
     }
 
@@ -282,5 +307,16 @@ export class TimelineComponent implements OnInit, OnDestroy {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  getPointsArray(points: number): number[] {
+    // Ensure at least 1 point is shown, default to 1 if undefined
+    const count = points || 1;
+    return Array.from({ length: count }, (_, i) => i);
+  }
+
+  getPointsLabel(points: number): string {
+    const count = points || 1;
+    return count === 1 ? '1 Credit' : `${count} Credits`;
   }
 }

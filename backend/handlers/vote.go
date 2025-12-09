@@ -155,27 +155,24 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		}
 	}
 
-	// Create votes based on points (each point = 1 vote entry)
-	var lastVote *models.Vote
-	for i := 0; i < points; i++ {
-		vote := &models.Vote{
-			FromUserID:    fromUserID,
-			ToUserID:      req.ToUserID,
-			AchievementID: req.AchievementID,
-		}
+	// Create a single vote with points value
+	vote := &models.Vote{
+		FromUserID:    fromUserID,
+		ToUserID:      req.ToUserID,
+		AchievementID: req.AchievementID,
+		Points:        points,
+	}
 
-		if err := h.voteRepo.Create(vote); err != nil {
-			log.Printf("Failed to create vote: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to create vote",
-			})
-			return
-		}
-		lastVote = vote
+	if err := h.voteRepo.Create(vote); err != nil {
+		log.Printf("Failed to create vote: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create vote",
+		})
+		return
 	}
 
 	// Get full vote details for response
-	voteDetails, err := h.voteRepo.GetByID(lastVote.ID)
+	voteDetails, err := h.voteRepo.GetByID(vote.ID)
 	if err != nil {
 		log.Printf("Failed to get vote details: %v", err)
 	}

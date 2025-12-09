@@ -8,17 +8,19 @@ type Vote struct {
 	FromUserID    uint64    `json:"from_user_id"`
 	ToUserID      uint64    `json:"to_user_id"`
 	AchievementID string    `json:"achievement_id"`
+	Points        int       `json:"points"`
 	CreatedAt     time.Time `json:"created_at"`
 }
 
 // VoteWithDetails includes user information for display
 type VoteWithDetails struct {
-	ID            uint64     `json:"id"`
-	FromUser      PublicUser `json:"from_user"`
-	ToUser        PublicUser `json:"to_user"`
-	AchievementID string     `json:"achievement_id"`
+	ID            uint64      `json:"id"`
+	FromUser      PublicUser  `json:"from_user"`
+	ToUser        PublicUser  `json:"to_user"`
+	AchievementID string      `json:"achievement_id"`
 	Achievement   Achievement `json:"achievement"`
-	CreatedAt     time.Time  `json:"created_at"`
+	Points        int         `json:"points"`
+	CreatedAt     time.Time   `json:"created_at"`
 }
 
 // CreateVoteRequest is the request body for creating a vote

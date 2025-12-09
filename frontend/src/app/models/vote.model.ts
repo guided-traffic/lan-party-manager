@@ -7,6 +7,7 @@ export interface Vote {
   to_user: User;
   achievement_id: string;
   achievement: Achievement;
+  points: number;
   created_at: string;
 }
 

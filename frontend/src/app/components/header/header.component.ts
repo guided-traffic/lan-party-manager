@@ -18,7 +18,7 @@ import { Subscription, interval } from 'rxjs';
         <div class="header-left">
           <a routerLink="/" class="logo">
             <span class="logo-icon">🎮</span>
-            <span class="logo-text">LAN Party</span>
+            <span class="logo-text">Rate your Mate</span>
           </a>
 
           @if (auth.isAuthenticated()) {
@@ -39,12 +39,6 @@ import { Subscription, interval } from 'rxjs';
                 <span class="nav-icon">💬</span>
                 Chat
               </a>
-              @if (isAdmin()) {
-                <a routerLink="/admin" routerLinkActive="active" class="nav-link admin-link">
-                  <span class="nav-icon">⚙️</span>
-                  Admin
-                </a>
-              }
             </nav>
           }
         </div>
@@ -93,6 +87,11 @@ import { Subscription, interval } from 'rxjs';
                   <a [href]="auth.user()?.profile_url" target="_blank" class="dropdown-item">
                     <span>🔗</span> Steam Profile
                   </a>
+                  @if (isAdmin()) {
+                    <a routerLink="/admin" class="dropdown-item" (click)="closeMenu()">
+                      <span>⚙️</span> Admin
+                    </a>
+                  }
                   <button (click)="logout()" class="dropdown-item logout">
                     <span>🚪</span> Logout
                   </button>
@@ -123,19 +122,21 @@ import { Subscription, interval } from 'rxjs';
     }
 
     .header-content {
-      max-width: 1400px;
+      max-width: 1250px;
       margin: 0 auto;
       height: 100%;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 24px;
+      gap: 14px;
     }
 
     .header-left {
       display: flex;
       align-items: center;
-      gap: 32px;
+      gap: 22px;
+      flex: 1;
     }
 
     .logo {
@@ -586,6 +587,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   toggleMenu(): void {
     this.menuOpen = !this.menuOpen;
+  }
+
+  closeMenu(): void {
+    this.menuOpen = false;
   }
 
   logout(): void {

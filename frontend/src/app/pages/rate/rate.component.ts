@@ -290,36 +290,51 @@ import { Achievement } from '../../models/achievement.model';
 
     .achievements-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+
+      @media (max-width: 900px) {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      @media (max-width: 600px) {
+        grid-template-columns: 1fr;
+      }
     }
 
     .achievement-btn {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 16px;
+      align-items: center;
+      gap: 12px;
+      padding: 24px 20px;
       background: $bg-card;
       border: 1px solid $border-color;
-      border-radius: $radius-md;
+      border-radius: $radius-lg;
       cursor: pointer;
-      text-align: left;
+      text-align: center;
       transition: all $transition-fast;
+      min-height: 160px;
+
+      .achievement-icon-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 72px;
+        height: 72px;
+        border-radius: $radius-md;
+      }
 
       .achievement-icon {
-        width: 48px;
-        height: 48px;
+        width: 56px;
+        height: 56px;
         border-radius: $radius-sm;
-        padding: 8px;
 
         &.positive {
-          background: rgba($accent-positive, 0.15);
           filter: invert(65%) sepia(52%) saturate(5765%) hue-rotate(103deg) brightness(96%) contrast(85%);
         }
 
         &.negative {
-          background: rgba($accent-negative, 0.15);
           filter: invert(39%) sepia(95%) saturate(1834%) hue-rotate(336deg) brightness(96%) contrast(93%);
         }
       }
@@ -345,16 +360,27 @@ import { Achievement } from '../../models/achievement.model';
 
       &.selected {
         box-shadow: $shadow-glow;
+        transform: translateY(-2px);
       }
 
       .achievement-name {
-        font-weight: 600;
+        font-weight: 700;
+        font-size: 17px;
         color: $text-primary;
+        line-height: 1.3;
+        margin-top: 4px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid $border-color;
+        width: 100%;
       }
 
       .achievement-desc {
-        font-size: 12px;
-        color: $text-muted;
+        font-size: 14px;
+        color: $text-secondary;
+        line-height: 1.5;
+        padding: 0 8px;
+        opacity: 0.85;
+        flex-grow: 1;
       }
     }
 

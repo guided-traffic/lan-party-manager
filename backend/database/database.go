@@ -81,9 +81,13 @@ func runMigrations() error {
 			from_user_id INTEGER NOT NULL REFERENCES users(id),
 			to_user_id INTEGER NOT NULL REFERENCES users(id),
 			achievement_id TEXT NOT NULL,
+			points INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			CHECK (from_user_id != to_user_id)
 		)`,
+
+		// Add points column to existing votes table (migration for existing DBs)
+		`ALTER TABLE votes ADD COLUMN points INTEGER DEFAULT 1`,
 
 		// Index for leaderboard queries
 		`CREATE INDEX IF NOT EXISTS idx_votes_achievement ON votes(achievement_id, to_user_id)`,
@@ -105,11 +109,31 @@ func runMigrations() error {
 	}
 
 	for _, migration := range migrations {
-		if _, err := DB.Exec(migration); err != nil {
+		_, err := DB.Exec(migration)
+		if err != nil {
+			// Ignore "duplicate column" errors for ALTER TABLE migrations
+			errStr := err.Error()
+			if contains(errStr, "duplicate column") || contains(errStr, "already exists") {
+				continue
+			}
 			return fmt.Errorf("migration failed: %w\nSQL: %s", err, migration)
 		}
 	}
 
 	log.Println("Database migrations completed")
 	return nil
+}
+
+// contains checks if a string contains a substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
