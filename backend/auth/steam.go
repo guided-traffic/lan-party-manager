@@ -76,15 +76,21 @@ func BuildFullCallbackURL(r *http.Request) string {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	// Check for proxy headers
+	// Check for proxy headers (set by reverse proxy/ingress)
 	if forwardedProto := r.Header.Get("X-Forwarded-Proto"); forwardedProto != "" {
 		scheme = forwardedProto
+	}
+
+	// Get the host - prefer X-Forwarded-Host for reverse proxy scenarios
+	host := r.Host
+	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
+		host = forwardedHost
 	}
 
 	// Build the full URL including query parameters
 	fullURL := url.URL{
 		Scheme:   scheme,
-		Host:     r.Host,
+		Host:     host,
 		Path:     r.URL.Path,
 		RawQuery: r.URL.RawQuery,
 	}
