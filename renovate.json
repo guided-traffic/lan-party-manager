@@ -62,10 +62,11 @@
   ],
   "gomod": {
     "enabled": true,
-    "postUpdateOptions": ["gomodTidy"]
+    "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"]
   },
   "npm": {
     "enabled": true,
-    "postUpdateOptions": ["npmDedupe"]
+    "postUpdateOptions": ["npmDedupe"],
+    "rangeStrategy": "bump"
   }
 }

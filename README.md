@@ -28,28 +28,6 @@ helm repo update
 ### Installation
 
 ```bash
-helm install lan-party-manager lan-party-manager/lan-party-manager \
-  --set secrets.steamApiKey=DEIN_STEAM_API_KEY \
-  --set secrets.jwtSecret=$(openssl rand -base64 32)
-```
-
-### Mit Ingress
-
-```bash
-helm install lan-party-manager lan-party-manager/lan-party-manager \
-  --set secrets.steamApiKey=DEIN_STEAM_API_KEY \
-  --set secrets.jwtSecret=$(openssl rand -base64 32) \
-  --set ingress.enabled=true \
-  --set ingress.hosts[0].host=lan-party.example.com \
-  --set ingress.hosts[0].paths[0].path=/ \
-  --set ingress.hosts[0].paths[0].pathType=Prefix \
-  --set backend.env.FRONTEND_URL=https://lan-party.example.com \
-  --set backend.env.BACKEND_URL=https://lan-party.example.com
-```
-
-### Mit eigener Values-Datei
-
-```bash
 helm install lan-party-manager lan-party-manager/lan-party-manager -f values.yaml
 ```
 
@@ -67,33 +45,10 @@ helm install lan-party-manager lan-party-manager/lan-party-manager -f values.yam
 
 Alle verfügbaren Optionen findest du in der [values.yaml](helm/lan-party-manager/values.yaml).
 
-## 🛠️ Entwicklung
-
-### Voraussetzungen
-
-- Node.js 20+
-- Go 1.22+
-
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-### Backend
-
-```bash
-cd backend
-go mod tidy
-go run main.go
-```
-
 ## 🎨 Credits
 
 Achievement-Icons von [Game-icons.net](https://game-icons.net) unter [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) Lizenz.
 
 ## 📄 Lizenz
 
-MIT
+Apache 2.0
