@@ -112,3 +112,38 @@ func (c *SteamAPIClient) GetPlayerSummaries(steamIDs []string) ([]SteamPlayer, e
 func (c *SteamAPIClient) IsConfigured() bool {
 	return c.apiKey != ""
 }
+
+// CheckConnectivity verifies that the Steam API endpoints are reachable
+// Returns nil if all checks pass, otherwise returns an error describing the issue
+func (c *SteamAPIClient) CheckConnectivity() error {
+	// Check Steam Community (OpenID endpoint)
+	steamCommunityURL := "https://steamcommunity.com/openid"
+	resp, err := c.httpClient.Head(steamCommunityURL)
+	if err != nil {
+		return fmt.Errorf("cannot reach Steam Community (%s): %w", steamCommunityURL, err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("Steam Community returned status %d", resp.StatusCode)
+	}
+
+	// Check Steam Web API (only if API key is configured)
+	if c.apiKey != "" {
+		// Use a simple API call to verify connectivity and API key validity
+		// We use GetPlayerSummaries with Valve's test Steam ID
+		testURL := fmt.Sprintf("%s/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=76561197960435530", steamAPIBaseURL, c.apiKey)
+		resp, err := c.httpClient.Get(testURL)
+		if err != nil {
+			return fmt.Errorf("cannot reach Steam Web API (%s): %w", steamAPIBaseURL, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			return fmt.Errorf("Steam API key is invalid or unauthorized (status %d)", resp.StatusCode)
+		}
+		if resp.StatusCode >= 400 {
+			return fmt.Errorf("Steam Web API returned status %d", resp.StatusCode)
+		}
+	}
+
+	return nil
+}

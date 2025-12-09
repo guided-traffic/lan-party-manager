@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/guided-traffic/lan-party-manager/backend/auth"
 	"github.com/guided-traffic/lan-party-manager/backend/config"
 	"github.com/guided-traffic/lan-party-manager/backend/database"
 	"github.com/guided-traffic/lan-party-manager/backend/handlers"
@@ -22,6 +23,13 @@ func main() {
 	// Load configuration
 	cfg = config.Load()
 	log.Printf("Configuration loaded - Frontend: %s, Backend: %s", cfg.FrontendURL, cfg.BackendURL)
+
+	// Check Steam connectivity at startup
+	steamAPIClient := auth.NewSteamAPIClient(cfg.SteamAPIKey)
+	if err := steamAPIClient.CheckConnectivity(); err != nil {
+		log.Fatalf("Steam connectivity check failed: %v", err)
+	}
+	log.Println("Steam endpoints are reachable")
 
 	// Initialize database
 	if err := database.Init("data/lan-party.db"); err != nil {
@@ -51,7 +59,11 @@ func main() {
 	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Recovery())
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/health"},
+	}))
 
 	// CORS configuration
 	corsConfig := cors.DefaultConfig()
