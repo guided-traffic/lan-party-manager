@@ -31,3 +31,14 @@ export interface AchievementLeaderboard {
   achievement: Achievement;
   leaders: LeaderboardEntry[];
 }
+
+export interface Champion {
+  user: User;
+  achievement_count: number;
+  total_votes: number;
+}
+
+export interface ChampionsResult {
+  king: Champion | null;
+  brother: Champion | null;
+}

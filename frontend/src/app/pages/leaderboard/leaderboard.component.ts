@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { VoteService } from '../../services/vote.service';
-import { AchievementLeaderboard } from '../../models/vote.model';
+import { AchievementLeaderboard, ChampionsResult } from '../../models/vote.model';
 
 @Component({
   selector: 'app-leaderboard',
@@ -19,6 +19,67 @@ import { AchievementLeaderboard } from '../../models/vote.model';
           <div class="spinner"></div>
         </div>
       } @else {
+        <!-- Champions Section -->
+        <section class="champions-section">
+          <div class="champions-grid">
+            <!-- König (Winner) -->
+            <div class="champion-card king">
+              <div class="champion-image-wrapper">
+                <img src="/logos/king.webp" alt="König" class="champion-image" />
+              </div>
+              <h2 class="champion-title">👑 König</h2>
+              <p class="champion-subtitle">Der Gewinner der LAN-Party</p>
+              @if (champions()?.king) {
+                <div class="champion-holder">
+                  <img
+                    [src]="champions()!.king!.user.avatar_url || '/assets/default-avatar.png'"
+                    [alt]="champions()!.king!.user.username"
+                    class="champion-avatar"
+                  />
+                  <span class="champion-name">{{ champions()!.king!.user.username }}</span>
+                  <div class="champion-stats">
+                    <span class="stat">{{ champions()!.king!.achievement_count }} Achievements</span>
+                    <span class="stat-separator">•</span>
+                    <span class="stat">{{ champions()!.king!.total_votes }} Votes</span>
+                  </div>
+                </div>
+              } @else {
+                <div class="no-champion">
+                  <span>Noch nicht ermittelt</span>
+                </div>
+              }
+            </div>
+
+            <!-- Bruder vom König (Loser) -->
+            <div class="champion-card brother">
+              <div class="champion-image-wrapper">
+                <img src="/logos/brother.webp" alt="Bruder vom König" class="champion-image" />
+              </div>
+              <h2 class="champion-title">🤡 Bruder vom König</h2>
+              <p class="champion-subtitle">Der Verlierer der LAN-Party</p>
+              @if (champions()?.brother) {
+                <div class="champion-holder">
+                  <img
+                    [src]="champions()!.brother!.user.avatar_url || '/assets/default-avatar.png'"
+                    [alt]="champions()!.brother!.user.username"
+                    class="champion-avatar"
+                  />
+                  <span class="champion-name">{{ champions()!.brother!.user.username }}</span>
+                  <div class="champion-stats">
+                    <span class="stat">{{ champions()!.brother!.achievement_count }} Achievements</span>
+                    <span class="stat-separator">•</span>
+                    <span class="stat">{{ champions()!.brother!.total_votes }} Votes</span>
+                  </div>
+                </div>
+              } @else {
+                <div class="no-champion">
+                  <span>Noch nicht ermittelt</span>
+                </div>
+              }
+            </div>
+          </div>
+        </section>
+
         <!-- Positive Achievements -->
         <section class="section">
           <h2 class="section-title positive">
@@ -291,6 +352,117 @@ import { AchievementLeaderboard } from '../../models/vote.model';
       color: $accent-primary;
       font-size: 14px;
     }
+
+    // Champions Section Styles
+    .champions-section {
+      margin-bottom: 48px;
+    }
+
+    .champions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .champion-card {
+      background: $bg-card;
+      border: 2px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 24px;
+      text-align: center;
+      transition: all $transition-fast;
+
+      &.king {
+        border-color: rgba(255, 215, 0, 0.5);
+        background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, $bg-card 100%);
+
+        .champion-title {
+          color: #ffd700;
+        }
+      }
+
+      &.brother {
+        border-color: rgba(139, 69, 19, 0.5);
+        background: linear-gradient(135deg, rgba(139, 69, 19, 0.1) 0%, $bg-card 100%);
+
+        .champion-title {
+          color: #cd853f;
+        }
+      }
+    }
+
+    .champion-image-wrapper {
+      margin-bottom: 16px;
+    }
+
+    .champion-image {
+      width: 120px;
+      height: 120px;
+      object-fit: contain;
+      border-radius: $radius-md;
+    }
+
+    .champion-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .champion-subtitle {
+      font-size: 14px;
+      color: $text-muted;
+      margin-bottom: 20px;
+    }
+
+    .champion-holder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 16px;
+      background: $bg-tertiary;
+      border-radius: $radius-md;
+    }
+
+    .champion-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      border: 3px solid $border-color;
+    }
+
+    .king .champion-avatar {
+      border-color: #ffd700;
+    }
+
+    .brother .champion-avatar {
+      border-color: #cd853f;
+    }
+
+    .champion-name {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .champion-stats {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: $text-muted;
+    }
+
+    .stat-separator {
+      opacity: 0.5;
+    }
+
+    .no-champion {
+      padding: 24px;
+      color: $text-muted;
+      font-style: italic;
+    }
   `]
 })
 export class LeaderboardComponent implements OnInit {
@@ -298,6 +470,7 @@ export class LeaderboardComponent implements OnInit {
 
   positiveAchievements = signal<AchievementLeaderboard[]>([]);
   negativeAchievements = signal<AchievementLeaderboard[]>([]);
+  champions = signal<ChampionsResult | null>(null);
   loading = signal(true);
 
   ngOnInit(): void {
@@ -305,18 +478,28 @@ export class LeaderboardComponent implements OnInit {
   }
 
   loadData(): void {
+    // Load leaderboard data
     this.voteService.getLeaderboard().subscribe({
       next: (leaderboard) => {
-        // Separate positive and negative achievements
         const positives = leaderboard.filter(lb => lb.achievement.is_positive);
         const negatives = leaderboard.filter(lb => !lb.achievement.is_positive);
 
         this.positiveAchievements.set(positives);
         this.negativeAchievements.set(negatives);
-        this.loading.set(false);
       },
       error: (error) => {
         console.error('Failed to load leaderboard data:', error);
+      }
+    });
+
+    // Load champions data
+    this.voteService.getChampions().subscribe({
+      next: (champions) => {
+        this.champions.set(champions);
+        this.loading.set(false);
+      },
+      error: (error) => {
+        console.error('Failed to load champions data:', error);
         this.loading.set(false);
       }
     });

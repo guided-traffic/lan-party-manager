@@ -145,6 +145,16 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Get the current king before creating votes (only for positive achievements)
+	var previousKingID uint64
+	achievement, _ := models.GetAchievement(req.AchievementID)
+	if achievement.IsPositive {
+		champsBefore, _ := h.voteRepo.GetChampions()
+		if champsBefore != nil && champsBefore.King != nil {
+			previousKingID = champsBefore.King.User.ID
+		}
+	}
+
 	// Create votes based on points (each point = 1 vote entry)
 	var lastVote *models.Vote
 	for i := 0; i < points; i++ {
@@ -190,6 +200,22 @@ func (h *VoteHandler) Create(c *gin.Context) {
 
 		// Broadcast to all clients - frontend decides who shows notification popup
 		h.wsHub.BroadcastVote(payload)
+
+		// Check if the king has changed (only for positive achievements)
+		if achievement.IsPositive {
+			champsAfter, _ := h.voteRepo.GetChampions()
+			if champsAfter != nil && champsAfter.King != nil {
+				newKingID := champsAfter.King.User.ID
+				// If king changed, broadcast the new king notification
+				if newKingID != previousKingID {
+					h.wsHub.BroadcastNewKing(
+						newKingID,
+						champsAfter.King.User.Username,
+						champsAfter.King.User.AvatarURL,
+					)
+				}
+			}
+		}
 	}
 
 	// Return updated credits
@@ -236,5 +262,22 @@ func (h *VoteHandler) GetLeaderboard(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"leaderboard": leaderboard,
+	})
+}
+
+// GetChampions returns the king (winner) and brother of the king (loser)
+// GET /api/v1/champions
+func (h *VoteHandler) GetChampions(c *gin.Context) {
+	champions, err := h.voteRepo.GetChampions()
+	if err != nil {
+		log.Printf("Failed to get champions: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to load champions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"champions": champions,
 	})
 }

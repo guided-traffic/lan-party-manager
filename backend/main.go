@@ -112,6 +112,7 @@ func main() {
 
 			// Leaderboard
 			protected.GET("/leaderboard", voteHandler.GetLeaderboard)
+			protected.GET("/champions", voteHandler.GetChampions)
 
 			// Admin routes (require admin privileges)
 			admin := protected.Group("/admin")

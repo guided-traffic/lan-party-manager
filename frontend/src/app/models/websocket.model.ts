@@ -1,4 +1,4 @@
-export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'settings_update' | 'credits_reset' | 'credits_given' | 'chat_message' | 'error';
+export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'settings_update' | 'credits_reset' | 'credits_given' | 'chat_message' | 'new_king' | 'error';
 
 export interface WebSocketMessage<T = unknown> {
   type: WebSocketMessageType;
@@ -27,6 +27,12 @@ export interface SettingsPayload {
 
 export interface CreditActionPayload {
   message: string;
+}
+
+export interface NewKingPayload {
+  user_id: number;
+  username: string;
+  avatar: string;
 }
 
 export interface ChatMessagePayload {

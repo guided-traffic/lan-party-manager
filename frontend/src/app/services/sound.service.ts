@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 
-export type SoundType = 'new-credit' | 'good-review' | 'bad-review' | 'review-given';
+export type SoundType = 'new-credit' | 'good-review' | 'bad-review' | 'review-given' | 'new-king';
 
 @Injectable({
   providedIn: 'root'
@@ -15,6 +15,7 @@ export class SoundService {
     this.preloadSound('good-review');
     this.preloadSound('bad-review');
     this.preloadSound('review-given');
+    this.preloadSound('new-king');
   }
 
   private preloadSound(type: SoundType): void {
@@ -54,6 +55,10 @@ export class SoundService {
 
   playReviewGiven(): void {
     this.play('review-given');
+  }
+
+  playNewKing(): void {
+    this.play('new-king');
   }
 
   setSoundEnabled(enabled: boolean): void {

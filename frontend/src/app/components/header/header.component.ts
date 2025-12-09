@@ -429,6 +429,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
   private settingsSubscription?: Subscription;
   private creditsResetSubscription?: Subscription;
   private creditsGivenSubscription?: Subscription;
+  private newKingSubscription?: Subscription;
   private timerSubscription?: Subscription;
   private timerInitialized = false;
 
@@ -544,6 +545,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
       this.auth.refreshUser();
       this.notifications.success('🎁 Credit erhalten', 'Der Admin hat dir 1 Credit gegeben');
     });
+
+    // Listen for new king notifications
+    this.newKingSubscription = this.ws.newKing$.subscribe((payload) => {
+      console.log('New king via WebSocket:', payload);
+      this.soundService.playNewKing();
+      this.notifications.success('👑 Neuer König!', `${payload.username} ist der neue König der LAN-Party!`);
+    });
   }
 
   ngOnDestroy(): void {
@@ -551,6 +559,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.settingsSubscription?.unsubscribe();
     this.creditsResetSubscription?.unsubscribe();
     this.creditsGivenSubscription?.unsubscribe();
+    this.newKingSubscription?.unsubscribe();
     this.timerSubscription?.unsubscribe();
   }
 

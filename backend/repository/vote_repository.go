@@ -220,3 +220,109 @@ func (r *VoteRepository) GetVotesForUser(userID uint64) ([]models.VoteWithDetail
 
 	return votes, nil
 }
+
+// Champion represents the king or brother of the king
+type Champion struct {
+	User             *models.PublicUser `json:"user"`
+	AchievementCount int                `json:"achievement_count"`
+	TotalVotes       int                `json:"total_votes"`
+}
+
+// ChampionsResult contains both the king and the brother
+type ChampionsResult struct {
+	King    *Champion `json:"king"`
+	Brother *Champion `json:"brother"`
+}
+
+// GetChampions calculates the King (winner) and Brother of the King (loser)
+// Winner: Most unique positive achievements, then most positive votes, then most total votes
+// Loser: Most unique negative achievements, then most negative votes, then most total votes (excluding winner)
+func (r *VoteRepository) GetChampions() (*ChampionsResult, error) {
+	result := &ChampionsResult{}
+
+	// Get all positive achievements data per user
+	// Count: unique achievements, votes on those achievements, total positive votes
+	positiveRows, err := database.DB.Query(`
+		SELECT
+			u.id, u.steam_id, u.username, u.avatar_url, u.avatar_small, u.profile_url,
+			COUNT(DISTINCT v.achievement_id) as achievement_count,
+			COUNT(*) as total_votes
+		FROM votes v
+		JOIN users u ON v.to_user_id = u.id
+		WHERE v.achievement_id IN ('pro-player', 'endboss', 'teamplayer', 'mvp', 'clutch-king', 'support-hero', 'stratege', 'good-sport')
+		GROUP BY u.id
+		ORDER BY achievement_count DESC, total_votes DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get positive champions: %w", err)
+	}
+	defer positiveRows.Close()
+
+	// Find the king (first row with tiebreaker on total votes)
+	var kingUserID uint64
+	for positiveRows.Next() {
+		var user models.PublicUser
+		var achievementCount, totalVotes int
+
+		err := positiveRows.Scan(
+			&user.ID, &user.SteamID, &user.Username, &user.AvatarURL, &user.AvatarSmall, &user.ProfileURL,
+			&achievementCount, &totalVotes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan positive champion row: %w", err)
+		}
+
+		if result.King == nil {
+			result.King = &Champion{
+				User:             &user,
+				AchievementCount: achievementCount,
+				TotalVotes:       totalVotes,
+			}
+			kingUserID = user.ID
+			break
+		}
+	}
+
+	// Get all negative achievements data per user (excluding the king)
+	negativeRows, err := database.DB.Query(`
+		SELECT
+			u.id, u.steam_id, u.username, u.avatar_url, u.avatar_small, u.profile_url,
+			COUNT(DISTINCT v.achievement_id) as achievement_count,
+			COUNT(*) as total_votes
+		FROM votes v
+		JOIN users u ON v.to_user_id = u.id
+		WHERE v.achievement_id IN ('noob', 'camper', 'rage-quitter', 'toxic', 'lagger', 'afk-king', 'friendly-fire-expert')
+		AND u.id != ?
+		GROUP BY u.id
+		ORDER BY achievement_count DESC, total_votes DESC
+	`, kingUserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get negative champions: %w", err)
+	}
+	defer negativeRows.Close()
+
+	// Find the brother (first row)
+	for negativeRows.Next() {
+		var user models.PublicUser
+		var achievementCount, totalVotes int
+
+		err := negativeRows.Scan(
+			&user.ID, &user.SteamID, &user.Username, &user.AvatarURL, &user.AvatarSmall, &user.ProfileURL,
+			&achievementCount, &totalVotes,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan negative champion row: %w", err)
+		}
+
+		if result.Brother == nil {
+			result.Brother = &Champion{
+				User:             &user,
+				AchievementCount: achievementCount,
+				TotalVotes:       totalVotes,
+			}
+			break
+		}
+	}
+
+	return result, nil
+}

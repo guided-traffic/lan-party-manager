@@ -26,6 +26,8 @@ const (
 	MessageTypeCreditsGiven MessageType = "credits_given"
 	// MessageTypeChatMessage is sent when a new chat message is posted
 	MessageTypeChatMessage MessageType = "chat_message"
+	// MessageTypeNewKing is sent when the king changes
+	MessageTypeNewKing MessageType = "new_king"
 	// MessageTypeError is sent when an error occurs
 	MessageTypeError MessageType = "error"
 )
@@ -292,4 +294,32 @@ func (h *Hub) BroadcastChatMessage(payload *ChatMessagePayload) {
 
 	log.Printf("WebSocket: Broadcasting chat_message to %d clients", h.GetConnectedUserCount())
 	h.broadcast <- data
+}
+
+// NewKingPayload contains info about the new king
+type NewKingPayload struct {
+	UserID   uint64 `json:"user_id"`
+	Username string `json:"username"`
+	Avatar   string `json:"avatar"`
+}
+
+// BroadcastNewKing notifies all clients that there is a new king
+func (h *Hub) BroadcastNewKing(userID uint64, username string, avatar string) {
+	msg := Message{
+		Type: MessageTypeNewKing,
+		Payload: NewKingPayload{
+			UserID:   userID,
+			Username: username,
+			Avatar:   avatar,
+		},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal new king message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted new king notification for user %s", username)
 }
