@@ -56,9 +56,6 @@ LABEL org.opencontainers.image.title="LAN Party Manager Backend" \
 WORKDIR /app
 COPY --from=builder /app/main .
 
-# Create data directory for SQLite (will be mounted as volume)
-# Note: distroless doesn't have mkdir, so we copy an empty dir or use volume mount
-
 USER 65532:65532
 
 EXPOSE 8080

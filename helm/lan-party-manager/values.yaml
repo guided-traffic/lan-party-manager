@@ -94,8 +94,19 @@ serviceAccount:
   name: ""
 
 podAnnotations: {}
-podSecurityContext: {}
-securityContext: {}
+# Pod security context - fsGroup ensures mounted volumes are writable by non-root user
+podSecurityContext:
+  fsGroup: 65532
+# Container security context - run as non-root user (distroless default)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
 
 nodeSelector: {}
 tolerations: []
