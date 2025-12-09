@@ -7,6 +7,7 @@ import { VoteService } from '../../services/vote.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { SettingsService } from '../../services/settings.service';
+import { SoundService } from '../../services/sound.service';
 import { User } from '../../models/user.model';
 import { Achievement } from '../../models/achievement.model';
 
@@ -512,6 +513,7 @@ export class RateComponent implements OnInit {
   private voteService = inject(VoteService);
   private notifications = inject(NotificationService);
   private settingsService = inject(SettingsService);
+  private soundService = inject(SoundService);
   auth = inject(AuthService);
 
   users = signal<User[]>([]);
@@ -584,6 +586,7 @@ export class RateComponent implements OnInit {
       points: points
     }).subscribe({
       next: (response) => {
+        this.soundService.playReviewGiven();
         const pointsText = points === 1 ? '1 Punkt' : `${points} Punkte`;
         this.notifications.success(
           'Bewertung abgegeben!',

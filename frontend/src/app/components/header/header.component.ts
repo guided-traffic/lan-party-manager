@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { NotificationService } from '../../services/notification.service';
 import { SettingsService } from '../../services/settings.service';
+import { SoundService } from '../../services/sound.service';
 import { Subscription, interval } from 'rxjs';
 
 @Component({
@@ -423,11 +424,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ws = inject(WebSocketService);
   private notifications = inject(NotificationService);
   private settingsService = inject(SettingsService);
+  private soundService = inject(SoundService);
   private subscription?: Subscription;
   private settingsSubscription?: Subscription;
   private creditsResetSubscription?: Subscription;
   private creditsGivenSubscription?: Subscription;
   private timerSubscription?: Subscription;
+  private timerInitialized = false;
 
   menuOpen = false;
   copied = signal(false);
@@ -496,6 +499,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     this.subscription = this.ws.newVote$.subscribe((payload) => {
       const currentUser = this.auth.user();
       if (currentUser && payload.to_user_id === currentUser.id) {
+        // Play sound based on whether the review is positive or negative
+        if (payload.is_positive) {
+          this.soundService.playGoodReview();
+        } else {
+          this.soundService.playBadReview();
+        }
         this.notifications.voteReceived(
           payload.from_username,
           payload.achievement_name,
@@ -531,6 +540,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
     // Listen for credits given from admin
     this.creditsGivenSubscription = this.ws.creditsGiven$.subscribe(() => {
       console.log('Credits given via WebSocket');
+      this.soundService.playNewCredit();
       this.auth.refreshUser();
       this.notifications.success('🎁 Credit erhalten', 'Der Admin hat dir 1 Credit gegeben');
     });
@@ -550,11 +560,17 @@ export class HeaderComponent implements OnInit, OnDestroy {
       const current = this.secondsUntilCredit();
       if (current > 0) {
         this.secondsUntilCredit.set(current - 1);
+        // Mark timer as initialized after first tick with valid time
+        this.timerInitialized = true;
       } else if (this.auth.credits() < this.maxCredits()) {
-        // Credit should have been earned, refresh user data
+        // Credit should have been earned - only play sound if timer was running
+        if (this.timerInitialized) {
+          this.soundService.playNewCredit();
+        }
         this.auth.refreshUser();
         // Reset timer with interval from config
         this.secondsUntilCredit.set(this.creditIntervalSeconds());
+        this.timerInitialized = true;
       }
     });
   }
