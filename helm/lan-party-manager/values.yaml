@@ -51,13 +51,17 @@ backend:
     CREDIT_INTERVAL_MINUTES: "10"
     CREDIT_MAX: "10"
 
-# Secrets - DO NOT commit real values to git!
-# Use --set secrets.steamApiKey=xxx or a separate values file
 secrets:
+  # Set to false if you manage secrets externally
   create: true
-  # Steam Web API Key - get yours at https://steamcommunity.com/dev/apikey
+  # Use an existing secret instead of creating one
+  # If set, secrets.create is ignored and this secret is used
+  existingSecret: ""
+  # Steam Web API Key (required for Steam login)
+  # Get yours at: https://steamcommunity.com/dev/apikey
   steamApiKey: ""
-  # JWT Secret - generate with: openssl rand -base64 32
+  # JWT Secret for token signing (required for authentication)
+  # Generate with: openssl rand -base64 32
   jwtSecret: ""
 
 ingress:

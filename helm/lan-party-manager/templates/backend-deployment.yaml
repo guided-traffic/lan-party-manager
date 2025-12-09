@@ -56,16 +56,18 @@ spec:
               value: "{{ .Values.backend.env.CREDIT_INTERVAL_MINUTES }}"
             - name: CREDIT_MAX
               value: "{{ .Values.backend.env.CREDIT_MAX }}"
-            {{- if .Values.secrets.create }}
+            {{- if or .Values.secrets.existingSecret (and .Values.secrets.create .Values.secrets.steamApiKey) }}
             - name: STEAM_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "lan-party-manager.fullname" . }}-secrets
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "lan-party-manager.fullname" .)) }}
                   key: STEAM_API_KEY
+            {{- end }}
+            {{- if or .Values.secrets.existingSecret (and .Values.secrets.create .Values.secrets.jwtSecret) }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "lan-party-manager.fullname" . }}-secrets
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "lan-party-manager.fullname" .)) }}
                   key: JWT_SECRET
             {{- end }}
           livenessProbe:
