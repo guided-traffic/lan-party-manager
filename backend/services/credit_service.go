@@ -92,7 +92,17 @@ func (s *CreditService) CanAffordVote(user *models.User) bool {
 	return user.Credits >= 1
 }
 
+// CanAffordVoteWithPoints checks if a user has enough credits for a vote with specific points
+func (s *CreditService) CanAffordVoteWithPoints(user *models.User, points int) bool {
+	return user.Credits >= points
+}
+
 // DeductVoteCost deducts the cost of a vote from the user's credits
 func (s *CreditService) DeductVoteCost(userID uint64) error {
 	return s.userRepo.DeductCredit(userID)
+}
+
+// DeductVoteCostWithPoints deducts multiple credits for a vote with points
+func (s *CreditService) DeductVoteCostWithPoints(userID uint64, points int) error {
+	return s.userRepo.DeductCredits(userID, points)
 }

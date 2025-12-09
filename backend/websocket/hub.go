@@ -49,6 +49,7 @@ type VotePayload struct {
 	Achievement   string `json:"achievement_name"`
 	IsPositive    bool   `json:"is_positive"`
 	CreatedAt     string `json:"created_at"`
+	Points        int    `json:"points,omitempty"` // Number of points awarded (1-3)
 }
 
 // SettingsPayload contains settings information for broadcasts

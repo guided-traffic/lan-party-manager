@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { UserService } from '../../services/user.service';
 import { AchievementService } from '../../services/achievement.service';
 import { VoteService } from '../../services/vote.service';
@@ -12,7 +13,7 @@ import { Achievement } from '../../models/achievement.model';
 @Component({
   selector: 'app-rate',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="page fade-in">
       <div class="page-header">
@@ -150,14 +151,31 @@ import { Achievement } from '../../models/achievement.model';
               </span>
             </p>
 
-            <div class="confirm-cost">
-              <span>Kosten:</span>
-              <span class="cost-value">💎 1 Credit</span>
+            <div class="points-selector">
+              <label class="points-label">Punkte:</label>
+              <div class="slider-container">
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="1"
+                  [ngModel]="selectedPoints()"
+                  (ngModelChange)="selectedPoints.set($event)"
+                  class="points-slider"
+                  [class.disabled]="auth.credits() < 1"
+                />
+                <div class="points-markers">
+                  <span [class.active]="selectedPoints() >= 1" [class.affordable]="auth.credits() >= 1">1</span>
+                  <span [class.active]="selectedPoints() >= 2" [class.affordable]="auth.credits() >= 2">2</span>
+                  <span [class.active]="selectedPoints() >= 3" [class.affordable]="auth.credits() >= 3">3</span>
+                </div>
+              </div>
+              <span class="points-value">{{ selectedPoints() }} {{ selectedPoints() === 1 ? 'Punkt' : 'Punkte' }}</span>
             </div>
 
             <button
               class="btn btn-primary btn-lg"
-              [disabled]="submitting() || auth.credits() < 1 || votingPaused()"
+              [disabled]="submitting() || auth.credits() < selectedPoints() || votingPaused()"
               (click)="submitVote()"
             >
               @if (submitting()) {
@@ -165,10 +183,10 @@ import { Achievement } from '../../models/achievement.model';
                 Wird gesendet...
               } @else if (votingPaused()) {
                 Voting pausiert
-              } @else if (auth.credits() < 1) {
+              } @else if (auth.credits() < selectedPoints()) {
                 Nicht genug Credits
               } @else {
-                Achievement vergeben
+                Bewerten
               }
             </button>
           </div>
@@ -378,6 +396,100 @@ import { Achievement } from '../../models/achievement.model';
       }
     }
 
+    .points-selector {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      width: 100%;
+      max-width: 300px;
+
+      .points-label {
+        font-weight: 600;
+        color: $text-secondary;
+        white-space: nowrap;
+      }
+
+      .slider-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .points-slider {
+        width: 100%;
+        height: 8px;
+        border-radius: 4px;
+        background: $bg-tertiary;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+
+        &::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: $gradient-primary;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+          transition: transform 0.15s ease;
+        }
+
+        &::-moz-range-thumb {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: $gradient-primary;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        &:hover::-webkit-slider-thumb {
+          transform: scale(1.1);
+        }
+
+        &.disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+
+      .points-markers {
+        display: flex;
+        justify-content: space-between;
+        padding: 9px;
+
+        span {
+          font-size: 12px;
+          color: $text-muted;
+          font-weight: 500;
+          transition: all 0.2s ease;
+
+          &.active {
+            color: $accent-primary;
+            font-weight: 700;
+          }
+
+          &:not(.affordable) {
+            color: $text-muted;
+            opacity: 0.5;
+          }
+        }
+      }
+
+      .points-value {
+        font-weight: 700;
+        color: $accent-primary;
+        white-space: nowrap;
+        min-width: 70px;
+        text-align: right;
+      }
+    }
+
     .confirm-cost {
       display: flex;
       align-items: center;
@@ -414,6 +526,7 @@ export class RateComponent implements OnInit {
 
   selectedUser = signal<User | null>(null);
   selectedAchievement = signal<Achievement | null>(null);
+  selectedPoints = signal(1);
 
   ngOnInit(): void {
     this.loadUsers();
@@ -448,15 +561,18 @@ export class RateComponent implements OnInit {
   selectUser(user: User): void {
     this.selectedUser.set(user);
     this.selectedAchievement.set(null);
+    this.selectedPoints.set(1);
   }
 
   selectAchievement(achievement: Achievement): void {
     this.selectedAchievement.set(achievement);
+    this.selectedPoints.set(1);
   }
 
   submitVote(): void {
     const user = this.selectedUser();
     const achievement = this.selectedAchievement();
+    const points = this.selectedPoints();
 
     if (!user || !achievement) return;
 
@@ -464,16 +580,19 @@ export class RateComponent implements OnInit {
 
     this.voteService.create({
       to_user_id: user.id,
-      achievement_id: achievement.id
+      achievement_id: achievement.id,
+      points: points
     }).subscribe({
       next: (response) => {
+        const pointsText = points === 1 ? '1 Punkt' : `${points} Punkte`;
         this.notifications.success(
-          'Achievement vergeben!',
-          `Du hast ${user.username} als "${achievement.name}" bewertet.`
+          'Bewertung abgegeben!',
+          `Du hast ${user.username} ${pointsText} für "${achievement.name}" gegeben.`
         );
         this.auth.updateCredits(response.credits);
         this.selectedUser.set(null);
         this.selectedAchievement.set(null);
+        this.selectedPoints.set(1);
         this.submitting.set(false);
       },
       error: (error) => {

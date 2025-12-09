@@ -13,6 +13,7 @@ export interface Vote {
 export interface CreateVoteRequest {
   to_user_id: number;
   achievement_id: string;
+  points?: number; // 1-3 points, defaults to 1
 }
 
 export interface VoteResponse {

@@ -62,6 +62,20 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Default to 1 point if not specified
+	points := req.Points
+	if points == 0 {
+		points = 1
+	}
+
+	// Validate points (1-3)
+	if points < 1 || points > 3 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Points must be between 1 and 3",
+		})
+		return
+	}
+
 	// Validate achievement
 	if !models.IsValidAchievement(req.AchievementID) {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -113,8 +127,8 @@ func (h *VoteHandler) Create(c *gin.Context) {
 	// Reload user to get updated credits
 	fromUser, _ = h.userRepo.GetByID(fromUserID)
 
-	// Check if user has enough credits
-	if !h.creditService.CanAffordVote(fromUser) {
+	// Check if user has enough credits for the requested points
+	if !h.creditService.CanAffordVoteWithPoints(fromUser, points) {
 		c.JSON(http.StatusPaymentRequired, gin.H{
 			"error":   "Insufficient credits",
 			"credits": fromUser.Credits,
@@ -122,39 +136,41 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Deduct credit
-	if err := h.creditService.DeductVoteCost(fromUserID); err != nil {
-		log.Printf("Failed to deduct credit: %v", err)
+	// Deduct credits based on points
+	if err := h.creditService.DeductVoteCostWithPoints(fromUserID, points); err != nil {
+		log.Printf("Failed to deduct credits: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to process vote",
 		})
 		return
 	}
 
-	// Create the vote
-	vote := &models.Vote{
-		FromUserID:    fromUserID,
-		ToUserID:      req.ToUserID,
-		AchievementID: req.AchievementID,
-	}
+	// Create votes based on points (each point = 1 vote entry)
+	var lastVote *models.Vote
+	for i := 0; i < points; i++ {
+		vote := &models.Vote{
+			FromUserID:    fromUserID,
+			ToUserID:      req.ToUserID,
+			AchievementID: req.AchievementID,
+		}
 
-	if err := h.voteRepo.Create(vote); err != nil {
-		log.Printf("Failed to create vote: %v", err)
-		// Try to refund the credit
-		// (In a real app, this should be a transaction)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to create vote",
-		})
-		return
+		if err := h.voteRepo.Create(vote); err != nil {
+			log.Printf("Failed to create vote: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to create vote",
+			})
+			return
+		}
+		lastVote = vote
 	}
 
 	// Get full vote details for response
-	voteDetails, err := h.voteRepo.GetByID(vote.ID)
+	voteDetails, err := h.voteRepo.GetByID(lastVote.ID)
 	if err != nil {
 		log.Printf("Failed to get vote details: %v", err)
 	}
 
-	// Broadcast vote to all WebSocket clients
+	// Broadcast vote to all WebSocket clients (once, with points info)
 	if voteDetails != nil && h.wsHub != nil {
 		achievement, _ := models.GetAchievement(voteDetails.AchievementID)
 		payload := &websocket.VotePayload{
@@ -169,6 +185,7 @@ func (h *VoteHandler) Create(c *gin.Context) {
 			Achievement:   achievement.Name,
 			IsPositive:    achievement.IsPositive,
 			CreatedAt:     voteDetails.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			Points:        points,
 		}
 
 		// Broadcast to all clients - frontend decides who shows notification popup

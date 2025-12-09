@@ -25,4 +25,5 @@ type VoteWithDetails struct {
 type CreateVoteRequest struct {
 	ToUserID      uint64 `json:"to_user_id" binding:"required"`
 	AchievementID string `json:"achievement_id" binding:"required"`
+	Points        int    `json:"points"` // 1-3 points, defaults to 1 if not provided
 }

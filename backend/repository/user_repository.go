@@ -129,14 +129,19 @@ func (r *UserRepository) UpdateCredits(userID uint64, credits int, lastCreditAt 
 
 // DeductCredit deducts one credit from a user (atomic operation)
 func (r *UserRepository) DeductCredit(userID uint64) error {
+	return r.DeductCredits(userID, 1)
+}
+
+// DeductCredits deducts a specified amount of credits from a user (atomic operation)
+func (r *UserRepository) DeductCredits(userID uint64, amount int) error {
 	result, err := database.DB.Exec(`
 		UPDATE users
-		SET credits = credits - 1, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND credits > 0`,
-		userID,
+		SET credits = credits - ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND credits >= ?`,
+		amount, userID, amount,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to deduct credit: %w", err)
+		return fmt.Errorf("failed to deduct credits: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
