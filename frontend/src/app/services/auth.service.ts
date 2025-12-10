@@ -24,19 +24,83 @@ export class AuthService {
     private http: HttpClient,
     private router: Router
   ) {
-    // Check for existing token on startup
+    // Check for existing token on startup (getToken() automatically removes expired tokens)
     const token = this.getToken();
-    console.log('[AuthService] Constructor - Token exists:', !!token);
+    console.log('[AuthService] Constructor - Valid token exists:', !!token);
     this.tokenExists.set(!!token);
     if (token) {
       // Set loading to true BEFORE loadCurrentUser to prevent race condition
       this.loading.set(true);
       this.loadCurrentUser();
+    } else {
+      // No valid token - ensure clean state
+      this.currentUser.set(null);
     }
   }
 
   getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    if (token && this.isTokenExpired(token)) {
+      console.log('[AuthService] Token is expired, removing it');
+      this.removeToken();
+      return null;
+    }
+    return token;
+  }
+
+  /**
+   * Check if a JWT token is expired by decoding the payload and checking the exp claim.
+   * Returns true if the token is expired or invalid.
+   */
+  isTokenExpired(token: string): boolean {
+    try {
+      const payload = this.decodeTokenPayload(token);
+      if (!payload || !payload.exp) {
+        console.log('[AuthService] Token has no exp claim');
+        return true;
+      }
+      // exp is in seconds, Date.now() is in milliseconds
+      const expirationTime = payload.exp * 1000;
+      const now = Date.now();
+      const isExpired = now >= expirationTime;
+
+      if (isExpired) {
+        const expiredAgo = Math.round((now - expirationTime) / 1000 / 60);
+        console.log(`[AuthService] Token expired ${expiredAgo} minutes ago`);
+      } else {
+        const expiresIn = Math.round((expirationTime - now) / 1000 / 60);
+        console.log(`[AuthService] Token expires in ${expiresIn} minutes`);
+      }
+
+      return isExpired;
+    } catch (error) {
+      console.error('[AuthService] Error checking token expiry:', error);
+      return true;
+    }
+  }
+
+  /**
+   * Decode the payload of a JWT token without verifying the signature.
+   * This is safe for client-side expiry checks since the server will still validate.
+   */
+  private decodeTokenPayload(token: string): { exp?: number; uid?: number; name?: string; steam_id?: string } | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        return null;
+      }
+      // Decode base64url to base64, then decode
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return null;
+    }
   }
 
   setToken(token: string): void {
@@ -47,6 +111,7 @@ export class AuthService {
   removeToken(): void {
     localStorage.removeItem(this.TOKEN_KEY);
     this.tokenExists.set(false);
+    this.currentUser.set(null);
   }
 
   login(): void {

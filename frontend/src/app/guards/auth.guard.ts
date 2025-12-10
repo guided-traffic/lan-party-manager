@@ -6,14 +6,16 @@ export const authGuard: CanActivateFn = () => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  const hasToken = !!authService.getToken();
-  console.log('[AuthGuard] Checking access - Has token:', hasToken);
+  // getToken() automatically returns null for expired tokens
+  const token = authService.getToken();
+  const hasValidToken = !!token;
+  console.log('[AuthGuard] Checking access - Has valid token:', hasValidToken);
 
-  if (hasToken) {
+  if (hasValidToken) {
     return true;
   }
 
-  console.log('[AuthGuard] No token, redirecting to login');
+  console.log('[AuthGuard] No valid token, redirecting to login');
   router.navigate(['/login']);
   return false;
 };

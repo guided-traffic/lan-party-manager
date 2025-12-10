@@ -27,11 +27,12 @@ func Init(dbPath string) error {
 
 	// Open database connection with optimized settings for concurrent access
 	// _journal_mode=WAL enables Write-Ahead Logging for better concurrent writes
-	// _busy_timeout=5000 waits up to 5 seconds before returning SQLITE_BUSY
+	// _busy_timeout=10000 waits up to 10 seconds before returning SQLITE_BUSY
 	// _synchronous=NORMAL is a good balance between safety and performance
 	// _cache_size=1000 increases the page cache size
 	// _foreign_keys=ON enables foreign key constraints
-	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_cache_size=1000&_foreign_keys=ON", dbPath)
+	// _txlock=immediate ensures write transactions get the lock immediately
+	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=10000&_synchronous=NORMAL&_cache_size=1000&_foreign_keys=ON&_txlock=immediate", dbPath)
 
 	var err error
 	DB, err = sql.Open("sqlite", dsn)
@@ -39,11 +40,13 @@ func Init(dbPath string) error {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Configure connection pool for SQLite
-	// SQLite works best with a single writer, but we allow multiple readers
-	DB.SetMaxOpenConns(1) // Only one connection to avoid SQLITE_BUSY on writes
-	DB.SetMaxIdleConns(1)
-	DB.SetConnMaxLifetime(0) // Connections don't expire
+	// Configure connection pool for SQLite with WAL mode
+	// WAL mode allows multiple readers and one writer concurrently
+	// We use a small pool to avoid connection overhead while allowing some concurrency
+	DB.SetMaxOpenConns(5)  // Allow multiple connections for concurrent reads
+	DB.SetMaxIdleConns(2)  // Keep some connections warm
+	DB.SetConnMaxLifetime(5 * time.Minute) // Recycle connections periodically
+	DB.SetConnMaxIdleTime(1 * time.Minute) // Close idle connections
 
 	// Test the connection
 	if err := DB.Ping(); err != nil {

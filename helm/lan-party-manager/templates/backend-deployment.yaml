@@ -6,6 +6,10 @@ metadata:
     {{- include "lan-party-manager.backendLabels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # SQLite requires exclusive access - use Recreate strategy to avoid SQLITE_BUSY errors
+  # during deployments (only one pod can access the database at a time)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "lan-party-manager.backendSelectorLabels" . | nindent 6 }}
