@@ -19,6 +19,7 @@ type GameCache struct {
 	OriginalCents   int       `json:"original_cents"`
 	DiscountPercent int       `json:"discount_percent"`
 	PriceFormatted  string    `json:"price_formatted"`
+	ReviewScore     int       `json:"review_score"` // Percentage of positive reviews (0-100), -1 if not enough reviews
 	FetchFailed     bool      `json:"fetch_failed"` // True if game was not found (e.g., removed from Steam Store)
 	FetchedAt       time.Time `json:"fetched_at"`
 }
@@ -35,9 +36,9 @@ func NewGameCacheRepository() *GameCacheRepository {
 func (r *GameCacheRepository) GetByAppID(appID int) (*GameCache, error) {
 	cache := &GameCache{}
 	err := database.DB.QueryRow(`
-		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, fetch_failed, fetched_at
+		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, review_score, fetch_failed, fetched_at
 		FROM game_cache WHERE app_id = ?`, appID,
-	).Scan(&cache.AppID, &cache.Name, &cache.Categories, &cache.IsFree, &cache.PriceCents, &cache.OriginalCents, &cache.DiscountPercent, &cache.PriceFormatted, &cache.FetchFailed, &cache.FetchedAt)
+	).Scan(&cache.AppID, &cache.Name, &cache.Categories, &cache.IsFree, &cache.PriceCents, &cache.OriginalCents, &cache.DiscountPercent, &cache.PriceFormatted, &cache.ReviewScore, &cache.FetchFailed, &cache.FetchedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -52,7 +53,7 @@ func (r *GameCacheRepository) GetByAppID(appID int) (*GameCache, error) {
 // GetAll returns all cached games
 func (r *GameCacheRepository) GetAll() ([]GameCache, error) {
 	rows, err := database.DB.Query(`
-		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, fetch_failed, fetched_at
+		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, review_score, fetch_failed, fetched_at
 		FROM game_cache ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all game cache: %w", err)
@@ -62,7 +63,7 @@ func (r *GameCacheRepository) GetAll() ([]GameCache, error) {
 	var games []GameCache
 	for rows.Next() {
 		var game GameCache
-		err := rows.Scan(&game.AppID, &game.Name, &game.Categories, &game.IsFree, &game.PriceCents, &game.OriginalCents, &game.DiscountPercent, &game.PriceFormatted, &game.FetchFailed, &game.FetchedAt)
+		err := rows.Scan(&game.AppID, &game.Name, &game.Categories, &game.IsFree, &game.PriceCents, &game.OriginalCents, &game.DiscountPercent, &game.PriceFormatted, &game.ReviewScore, &game.FetchFailed, &game.FetchedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan game cache row: %w", err)
 		}
@@ -76,7 +77,7 @@ func (r *GameCacheRepository) GetAll() ([]GameCache, error) {
 func (r *GameCacheRepository) GetStaleGames(maxAge time.Duration) ([]GameCache, error) {
 	cutoff := time.Now().Add(-maxAge)
 	rows, err := database.DB.Query(`
-		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, fetch_failed, fetched_at
+		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, review_score, fetch_failed, fetched_at
 		FROM game_cache
 		WHERE fetched_at < ?
 		ORDER BY fetched_at ASC`, cutoff)
@@ -88,7 +89,7 @@ func (r *GameCacheRepository) GetStaleGames(maxAge time.Duration) ([]GameCache, 
 	var games []GameCache
 	for rows.Next() {
 		var game GameCache
-		err := rows.Scan(&game.AppID, &game.Name, &game.Categories, &game.IsFree, &game.PriceCents, &game.OriginalCents, &game.DiscountPercent, &game.PriceFormatted, &game.FetchFailed, &game.FetchedAt)
+		err := rows.Scan(&game.AppID, &game.Name, &game.Categories, &game.IsFree, &game.PriceCents, &game.OriginalCents, &game.DiscountPercent, &game.PriceFormatted, &game.ReviewScore, &game.FetchFailed, &game.FetchedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan game cache row: %w", err)
 		}
@@ -98,13 +99,14 @@ func (r *GameCacheRepository) GetStaleGames(maxAge time.Duration) ([]GameCache, 
 	return games, nil
 }
 
-// GamePriceInfo contains price information for caching
+// GamePriceInfo contains price and review information for caching
 type GamePriceInfo struct {
 	IsFree          bool
 	PriceCents      int
 	OriginalCents   int
 	DiscountPercent int
 	PriceFormatted  string
+	ReviewScore     int // Percentage of positive reviews (0-100), -1 if not enough reviews
 }
 
 // Upsert creates or updates a cached game
@@ -121,12 +123,12 @@ func (r *GameCacheRepository) UpsertWithStatus(appID int, name string, categorie
 
 	// Default price info if nil
 	if price == nil {
-		price = &GamePriceInfo{}
+		price = &GamePriceInfo{ReviewScore: -1}
 	}
 
 	_, err = database.DB.Exec(`
-		INSERT INTO game_cache (app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, fetch_failed, fetched_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		INSERT INTO game_cache (app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, review_score, fetch_failed, fetched_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(app_id) DO UPDATE SET
 			name = excluded.name,
 			categories = excluded.categories,
@@ -135,9 +137,10 @@ func (r *GameCacheRepository) UpsertWithStatus(appID int, name string, categorie
 			original_cents = excluded.original_cents,
 			discount_percent = excluded.discount_percent,
 			price_formatted = excluded.price_formatted,
+			review_score = excluded.review_score,
 			fetch_failed = excluded.fetch_failed,
 			fetched_at = CURRENT_TIMESTAMP`,
-		appID, name, string(categoriesJSON), price.IsFree, price.PriceCents, price.OriginalCents, price.DiscountPercent, price.PriceFormatted, fetchFailed,
+		appID, name, string(categoriesJSON), price.IsFree, price.PriceCents, price.OriginalCents, price.DiscountPercent, price.PriceFormatted, price.ReviewScore, fetchFailed,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to upsert game cache: %w", err)

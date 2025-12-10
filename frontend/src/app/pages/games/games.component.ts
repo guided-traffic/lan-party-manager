@@ -61,14 +61,25 @@ import { User } from '../../models/user.model';
                   <div class="game-info">
                     <div class="game-title-row">
                       <h3>{{ game.name }}</h3>
-                      @if (game.price_formatted) {
-                        <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
-                          @if (game.discount_percent > 0) {
-                            <span class="discount-tag">-{{ game.discount_percent }}%</span>
-                          }
-                          <span class="price">{{ game.price_formatted }}</span>
-                        </div>
-                      }
+                      <div class="price-review-column">
+                        @if (game.price_formatted) {
+                          <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
+                            @if (game.discount_percent > 0) {
+                              <span class="discount-tag">-{{ game.discount_percent }}%</span>
+                            }
+                            @if (getPriceTier(game.price_cents, game.is_free)) {
+                              <span class="price-tier">{{ getPriceTier(game.price_cents, game.is_free) }}</span>
+                            }
+                            <span class="price">{{ game.price_formatted }}</span>
+                          </div>
+                        }
+                        @if (game.review_score >= 0) {
+                          <div class="review-score" [class.positive]="game.review_score >= 85" [class.mixed]="game.review_score >= 70 && game.review_score < 85" [class.negative]="game.review_score < 70">
+                            <span class="thumb">👍</span>
+                            <span class="score">{{ game.review_score }}%</span>
+                          </div>
+                        }
+                      </div>
                     </div>
                     <div class="game-meta">
                       @if (game.owner_count > 0) {
@@ -122,14 +133,25 @@ import { User } from '../../models/user.model';
                   <div class="game-info">
                     <div class="game-title-row">
                       <h3>{{ game.name }}</h3>
-                      @if (game.price_formatted) {
-                        <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
-                          @if (game.discount_percent > 0) {
-                            <span class="discount-tag">-{{ game.discount_percent }}%</span>
-                          }
-                          <span class="price">{{ game.price_formatted }}</span>
-                        </div>
-                      }
+                      <div class="price-review-column">
+                        @if (game.price_formatted) {
+                          <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
+                            @if (game.discount_percent > 0) {
+                              <span class="discount-tag">-{{ game.discount_percent }}%</span>
+                            }
+                            @if (getPriceTier(game.price_cents, game.is_free)) {
+                              <span class="price-tier">{{ getPriceTier(game.price_cents, game.is_free) }}</span>
+                            }
+                            <span class="price">{{ game.price_formatted }}</span>
+                          </div>
+                        }
+                        @if (game.review_score >= 0) {
+                          <div class="review-score" [class.positive]="game.review_score >= 85" [class.mixed]="game.review_score >= 70 && game.review_score < 85" [class.negative]="game.review_score < 70">
+                            <span class="thumb">👍</span>
+                            <span class="score">{{ game.review_score }}%</span>
+                          </div>
+                        }
+                      </div>
                     </div>
                     <div class="game-meta">
                       <div class="owners" [title]="getOwnerNames(game.owners)">
@@ -439,6 +461,53 @@ import { User } from '../../models/user.model';
                 font-weight: 700;
               }
             }
+
+            .price-tier {
+              color: $accent-warning;
+              font-size: 0.75rem;
+              letter-spacing: -1px;
+            }
+          }
+
+          .price-review-column {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            flex-shrink: 0;
+          }
+
+          .review-score {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+
+            .thumb {
+              font-size: 0.7rem;
+            }
+
+            .score {
+              font-weight: 700;
+            }
+
+            &.positive {
+              background: rgba(76, 175, 80, 0.2);
+              color: #4caf50;
+            }
+
+            &.mixed {
+              background: rgba(255, 193, 7, 0.2);
+              color: #ffc107;
+            }
+
+            &.negative {
+              background: rgba(244, 67, 54, 0.2);
+              color: #f44336;
+            }
           }
         }
 
@@ -619,6 +688,14 @@ export class GamesComponent implements OnInit {
   getMultiplayerCategories(categories: string[]): string[] {
     const mpCategories = ['Multi-player', 'Co-op', 'Online Co-op', 'LAN Co-op', 'LAN PvP', 'Online PvP', 'PvP'];
     return (categories || []).filter(cat => mpCategories.includes(cat));
+  }
+
+  getPriceTier(priceCents: number, isFree: boolean): string {
+    if (isFree || priceCents === 0) return '';
+    const priceEuros = priceCents / 100;
+    if (priceEuros < 10) return '€';
+    if (priceEuros < 20) return '€€';
+    return '€€€';
   }
 
   openSteamStore(appId: number) {

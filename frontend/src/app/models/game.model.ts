@@ -14,6 +14,8 @@ export interface Game {
   original_cents: number;
   discount_percent: number;
   price_formatted: string;
+  // Review information
+  review_score: number; // Percentage of positive reviews (0-100), -1 if not enough reviews
 }
 
 export interface GamesResponse {

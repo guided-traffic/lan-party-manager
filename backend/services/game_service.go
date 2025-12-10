@@ -184,6 +184,7 @@ func (s *GameService) fetchMultiplayerGames() (*models.GamesResponse, error) {
 						game.OriginalCents = cached.OriginalCents
 						game.DiscountPercent = cached.DiscountPercent
 						game.PriceFormatted = cached.PriceFormatted
+						game.ReviewScore = cached.ReviewScore
 					}
 
 					gameMap[g.AppID] = game
@@ -221,6 +222,7 @@ func (s *GameService) fetchMultiplayerGames() (*models.GamesResponse, error) {
 					game.OriginalCents = cached.OriginalCents
 					game.DiscountPercent = cached.DiscountPercent
 					game.PriceFormatted = cached.PriceFormatted
+					game.ReviewScore = cached.ReviewScore
 				}
 			} else {
 				gamesToFetch = append(gamesToFetch, game)
@@ -445,6 +447,7 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 		game.OriginalCents = storeData.OriginalCents
 		game.DiscountPercent = storeData.DiscountPercent
 		game.PriceFormatted = storeData.PriceFormatted
+		game.ReviewScore = storeData.ReviewScore
 
 		// Cache image using the header_image URL from Steam API
 		if storeData.HeaderImageURL != "" {
@@ -458,6 +461,7 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 			OriginalCents:   storeData.OriginalCents,
 			DiscountPercent: storeData.DiscountPercent,
 			PriceFormatted:  storeData.PriceFormatted,
+			ReviewScore:     storeData.ReviewScore,
 		}
 		if err := s.gameCacheRepo.Upsert(game.AppID, game.Name, storeData.Categories, priceInfo); err != nil {
 			log.Printf("Failed to cache game %d: %v", game.AppID, err)
@@ -521,6 +525,9 @@ func (s *GameService) fetchGameCategoriesFromStore(appID int) (*GameStoreData, e
 		data.PriceFormatted = appData.Data.PriceOverview.FinalFormatted
 	}
 
+	// Fetch review score from Steam Review API
+	data.ReviewScore = s.fetchGameReviewScore(appID)
+
 	return data, nil
 }
 
@@ -534,6 +541,59 @@ type GameStoreData struct {
 	OriginalCents   int
 	DiscountPercent int
 	PriceFormatted  string
+	ReviewScore     int // Percentage of positive reviews (0-100), -1 if not enough reviews
+}
+
+// steamReviewResponse represents the Steam Review API response
+type steamReviewResponse struct {
+	Success      int `json:"success"`
+	QuerySummary struct {
+		NumReviews      int    `json:"num_reviews"`
+		ReviewScore     int    `json:"review_score"`
+		ReviewScoreDesc string `json:"review_score_desc"`
+		TotalPositive   int    `json:"total_positive"`
+		TotalNegative   int    `json:"total_negative"`
+		TotalReviews    int    `json:"total_reviews"`
+	} `json:"query_summary"`
+}
+
+// fetchGameReviewScore fetches the review score percentage from Steam Review API
+// Returns the percentage of positive reviews (0-100), or -1 if not enough reviews
+func (s *GameService) fetchGameReviewScore(appID int) int {
+	url := fmt.Sprintf("https://store.steampowered.com/appreviews/%d?json=1&purchase_type=all&language=all", appID)
+
+	resp, err := s.httpClient.Get(url)
+	if err != nil {
+		log.Printf("Failed to fetch reviews for game %d: %v", appID, err)
+		return -1
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Steam Review API returned status %d for game %d", resp.StatusCode, appID)
+		return -1
+	}
+
+	var reviewResp steamReviewResponse
+	if err := json.NewDecoder(resp.Body).Decode(&reviewResp); err != nil {
+		log.Printf("Failed to parse review response for game %d: %v", appID, err)
+		return -1
+	}
+
+	if reviewResp.Success != 1 {
+		log.Printf("Steam Review API returned unsuccessful for game %d", appID)
+		return -1
+	}
+
+	totalReviews := reviewResp.QuerySummary.TotalPositive + reviewResp.QuerySummary.TotalNegative
+	if totalReviews < 10 {
+		// Not enough reviews for a meaningful percentage
+		return -1
+	}
+
+	// Calculate percentage of positive reviews
+	percentage := (reviewResp.QuerySummary.TotalPositive * 100) / totalReviews
+	return percentage
 }
 
 // fetchGameDetails fetches full details for a single game (used for pinned games not in library)
@@ -565,6 +625,7 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 				OriginalCents:   cached.OriginalCents,
 				DiscountPercent: cached.DiscountPercent,
 				PriceFormatted:  cached.PriceFormatted,
+				ReviewScore:     cached.ReviewScore,
 			}, nil
 		}
 	}
@@ -586,6 +647,7 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 				OriginalCents:   cached.OriginalCents,
 				DiscountPercent: cached.DiscountPercent,
 				PriceFormatted:  cached.PriceFormatted,
+				ReviewScore:     cached.ReviewScore,
 			}, nil
 		}
 		return nil, fmt.Errorf("rate limited and no cache available")
@@ -616,6 +678,7 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 		OriginalCents:   storeData.OriginalCents,
 		DiscountPercent: storeData.DiscountPercent,
 		PriceFormatted:  storeData.PriceFormatted,
+		ReviewScore:     storeData.ReviewScore,
 	}
 	if err := s.gameCacheRepo.Upsert(appID, storeData.Name, storeData.Categories, priceInfo); err != nil {
 		log.Printf("Failed to cache game %d: %v", appID, err)
@@ -634,6 +697,7 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 		OriginalCents:   storeData.OriginalCents,
 		DiscountPercent: storeData.DiscountPercent,
 		PriceFormatted:  storeData.PriceFormatted,
+		ReviewScore:     storeData.ReviewScore,
 	}, nil
 }
 

@@ -246,6 +246,9 @@ func runMigrations() error {
 		// Add fetch_failed column for games that couldn't be fetched (e.g., removed from Steam Store)
 		`ALTER TABLE game_cache ADD COLUMN fetch_failed INTEGER DEFAULT 0`,
 
+		// Add review_score column for Steam user reviews percentage
+		`ALTER TABLE game_cache ADD COLUMN review_score INTEGER DEFAULT -1`,
+
 		// Fix any NULL last_credit_at values (can happen from failed migrations)
 		`UPDATE users SET last_credit_at = CURRENT_TIMESTAMP WHERE last_credit_at IS NULL`,
 	}

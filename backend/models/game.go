@@ -17,6 +17,8 @@ type Game struct {
 	OriginalCents   int    `json:"original_cents"`    // Original price before discount
 	DiscountPercent int    `json:"discount_percent"`  // Discount percentage (0-100)
 	PriceFormatted  string `json:"price_formatted"`   // Formatted price string (e.g., "59,99€" or "Free")
+	// Review information
+	ReviewScore int `json:"review_score"` // Percentage of positive reviews (0-100), -1 if not enough reviews
 }
 
 // GameOwnership represents a player's ownership of a game
