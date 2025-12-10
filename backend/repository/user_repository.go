@@ -156,11 +156,11 @@ func (r *UserRepository) DeductCredits(userID uint64, amount int) error {
 	return nil
 }
 
-// ResetAllCredits sets all users' credits to 0
+// ResetAllCredits sets all users' credits to 0 and resets the time until next credit
 func (r *UserRepository) ResetAllCredits() (int64, error) {
 	result, err := database.DB.Exec(`
 		UPDATE users
-		SET credits = 0, updated_at = CURRENT_TIMESTAMP`)
+		SET credits = 0, last_credit_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`)
 	if err != nil {
 		return 0, fmt.Errorf("failed to reset all credits: %w", err)
 	}
@@ -190,6 +190,51 @@ func (r *UserRepository) GiveEveryoneCredit(maxCredits int) (int64, error) {
 	}
 
 	return rowsAffected, nil
+}
+
+// ShiftAllLastCreditAt shifts all users' last_credit_at forward by the given duration
+// This is used when voting is resumed after a pause to prevent users from accumulating
+// credit time during the pause
+func (r *UserRepository) ShiftAllLastCreditAt(duration time.Duration) error {
+	// Add the duration (in seconds) to all last_credit_at timestamps
+	// We calculate the new timestamp in Go and update directly
+	newTime := time.Now()
+
+	// Get all users and update their last_credit_at by adding the pause duration
+	rows, err := database.DB.Query(`SELECT id, last_credit_at FROM users`)
+	if err != nil {
+		return fmt.Errorf("failed to query users: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var userID uint64
+		var lastCreditAt time.Time
+		if err := rows.Scan(&userID, &lastCreditAt); err != nil {
+			// If last_credit_at is NULL, use current time
+			continue
+		}
+
+		// Shift the timestamp forward by the pause duration
+		newLastCreditAt := lastCreditAt.Add(duration)
+
+		// Don't set it to the future
+		if newLastCreditAt.After(newTime) {
+			newLastCreditAt = newTime
+		}
+
+		// Update this user
+		_, err := database.DB.Exec(`
+			UPDATE users
+			SET last_credit_at = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ?`,
+			newLastCreditAt, userID)
+		if err != nil {
+			return fmt.Errorf("failed to update user %d: %w", userID, err)
+		}
+	}
+
+	return rows.Err()
 }
 
 // FindOrCreate finds a user by Steam ID or creates a new one

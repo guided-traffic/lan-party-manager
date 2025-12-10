@@ -460,6 +460,8 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   // Progress percentage for the charging credit (0-100)
   chargeProgress = computed(() => {
+    // No progress animation when voting is paused
+    if (this.settingsService.votingPaused()) return 0;
     const seconds = this.secondsUntilCredit();
     const intervalSeconds = this.creditIntervalSeconds();
     if (seconds <= 0 || this.auth.credits() >= this.maxCredits()) return 0;
@@ -467,8 +469,12 @@ export class HeaderComponent implements OnInit, OnDestroy {
     return Math.max(0, Math.min(100, progress));
   });
 
-  // Formatted countdown display (m:ss or -:--)
+  // Formatted countdown display (m:ss or -:-- or ⏸ when paused)
   countdownDisplay = computed(() => {
+    // When voting is paused, credit generation is also paused
+    if (this.settingsService.votingPaused()) {
+      return '⏸';
+    }
     if (this.auth.credits() >= this.maxCredits()) {
       return '-:--';
     }
@@ -529,6 +535,9 @@ export class HeaderComponent implements OnInit, OnDestroy {
         this.notifications.info('⏸️ Voting pausiert', 'Der Admin hat das Voting pausiert');
       } else {
         this.notifications.info('▶️ Voting fortgesetzt', 'Das Voting wurde wieder aktiviert');
+        // Refresh user data to get current credit state after voting is resumed
+        // This ensures the timer starts with the correct value from the backend
+        this.auth.refreshUser();
       }
     });
 
@@ -567,6 +576,11 @@ export class HeaderComponent implements OnInit, OnDestroy {
   private initCreditTimer(): void {
     // Update every second
     this.timerSubscription = interval(1000).subscribe(() => {
+      // Skip credit generation when voting is paused
+      if (this.settingsService.votingPaused()) {
+        return;
+      }
+
       const current = this.secondsUntilCredit();
       if (current > 0) {
         this.secondsUntilCredit.set(current - 1);

@@ -24,7 +24,13 @@ func NewCreditService(cfg *config.Config, userRepo *repository.UserRepository) *
 
 // CalculateAndUpdateCredits calculates new credits based on time elapsed and updates the user
 // Returns the updated credit count
+// Note: When voting is paused, no new credits are generated
 func (s *CreditService) CalculateAndUpdateCredits(user *models.User) (int, error) {
+	// If voting is paused, don't generate new credits
+	if s.cfg.VotingPaused {
+		return user.Credits, nil
+	}
+
 	now := time.Now()
 
 	// Calculate time elapsed since last credit was given
@@ -71,7 +77,13 @@ func (s *CreditService) CalculateAndUpdateCredits(user *models.User) (int, error
 
 // GetTimeUntilNextCredit returns the duration until the user earns their next credit
 // Returns 0 if the user is at max credits
+// Returns -1 if voting is paused (credit generation is disabled)
 func (s *CreditService) GetTimeUntilNextCredit(user *models.User) time.Duration {
+	// If voting is paused, credit generation is disabled
+	if s.cfg.VotingPaused {
+		return -1
+	}
+
 	if user.Credits >= s.cfg.CreditMax {
 		return 0
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -28,7 +29,8 @@ type Config struct {
 	CreditMax             int
 
 	// Voting
-	VotingPaused bool
+	VotingPaused   bool
+	VotingPausedAt time.Time // Timestamp when voting was paused (for freezing credit generation)
 
 	// Admin
 	AdminSteamIDs []string

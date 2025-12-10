@@ -106,6 +106,9 @@ func runMigrations() error {
 
 		// Index for chat timeline queries
 		`CREATE INDEX IF NOT EXISTS idx_chat_messages_timeline ON chat_messages(created_at DESC)`,
+
+		// Fix any NULL last_credit_at values (can happen from failed migrations)
+		`UPDATE users SET last_credit_at = CURRENT_TIMESTAMP WHERE last_credit_at IS NULL`,
 	}
 
 	for _, migration := range migrations {

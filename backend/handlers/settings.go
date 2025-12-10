@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/guided-traffic/lan-party-manager/backend/config"
@@ -103,10 +104,29 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	if req.VotingPaused != nil {
+		wasAlreadyPaused := h.cfg.VotingPaused
 		h.cfg.VotingPaused = *req.VotingPaused
 		updated = true
+
 		if *req.VotingPaused {
-			log.Printf("Admin paused voting")
+			// Record when voting was paused
+			h.cfg.VotingPausedAt = time.Now()
+			log.Printf("Admin paused voting at %v", h.cfg.VotingPausedAt)
+		} else if wasAlreadyPaused && !h.cfg.VotingPausedAt.IsZero() {
+			// Voting is being resumed - shift all users' last_credit_at forward
+			// by the pause duration so they don't accumulate time during pause
+			pauseDuration := time.Since(h.cfg.VotingPausedAt)
+			log.Printf("Admin resumed voting after %v pause", pauseDuration)
+
+			// Shift all users' last_credit_at forward by the pause duration
+			if err := h.userRepo.ShiftAllLastCreditAt(pauseDuration); err != nil {
+				log.Printf("Warning: Failed to shift last_credit_at times: %v", err)
+			} else {
+				log.Printf("Shifted all users' last_credit_at forward by %v", pauseDuration)
+			}
+
+			// Reset the paused timestamp
+			h.cfg.VotingPausedAt = time.Time{}
 		} else {
 			log.Printf("Admin resumed voting")
 		}
