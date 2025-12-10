@@ -21,21 +21,37 @@ func Init(dbPath string) error {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// Open database connection
+	// Open database connection with optimized settings for concurrent access
+	// _journal_mode=WAL enables Write-Ahead Logging for better concurrent writes
+	// _busy_timeout=5000 waits up to 5 seconds before returning SQLITE_BUSY
+	// _synchronous=NORMAL is a good balance between safety and performance
+	// _cache_size=1000 increases the page cache size
+	// _foreign_keys=ON enables foreign key constraints
+	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL&_cache_size=1000&_foreign_keys=ON", dbPath)
+
 	var err error
-	DB, err = sql.Open("sqlite", dbPath)
+	DB, err = sql.Open("sqlite", dsn)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
+
+	// Configure connection pool for SQLite
+	// SQLite works best with a single writer, but we allow multiple readers
+	DB.SetMaxOpenConns(1) // Only one connection to avoid SQLITE_BUSY on writes
+	DB.SetMaxIdleConns(1)
+	DB.SetConnMaxLifetime(0) // Connections don't expire
 
 	// Test the connection
 	if err := DB.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	// Enable foreign keys
-	if _, err := DB.Exec("PRAGMA foreign_keys = ON"); err != nil {
-		return fmt.Errorf("failed to enable foreign keys: %w", err)
+	// Verify WAL mode is enabled
+	var journalMode string
+	if err := DB.QueryRow("PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		log.Printf("Warning: Could not verify journal mode: %v", err)
+	} else {
+		log.Printf("SQLite journal mode: %s", journalMode)
 	}
 
 	// Run migrations
