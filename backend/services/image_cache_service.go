@@ -123,6 +123,62 @@ func (s *ImageCacheService) CacheImageAsync(appID int) {
 	}()
 }
 
+// CacheImageFromURL downloads and caches a game's header image from a specific URL
+// This is useful for newer Steam games that use the new CDN with hash-based URLs
+func (s *ImageCacheService) CacheImageFromURL(appID int, imageURL string) bool {
+	// Skip if already cached
+	if s.HasImage(appID) {
+		return true
+	}
+
+	// Ensure directory exists
+	if err := s.ensureDir(); err != nil {
+		log.Printf("Failed to create image cache directory: %v", err)
+		return false
+	}
+
+	// Download from the provided URL
+	resp, err := s.httpClient.Get(imageURL)
+	if err != nil {
+		log.Printf("Failed to download image for game %d from %s: %v", appID, imageURL, err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to download image for game %d from %s: HTTP %d", appID, imageURL, resp.StatusCode)
+		return false
+	}
+
+	// Create the local file
+	localPath := s.GetImagePath(appID)
+	file, err := os.Create(localPath)
+	if err != nil {
+		log.Printf("Failed to create image file for game %d: %v", appID, err)
+		return false
+	}
+	defer file.Close()
+
+	// Copy the image data
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		log.Printf("Failed to save image for game %d: %v", appID, err)
+		// Clean up partial file
+		os.Remove(localPath)
+		return false
+	}
+
+	log.Printf("Cached image for game %d from Steam API URL", appID)
+	return true
+}
+
+// CacheImageFromURLAsync downloads and caches a game's header image from a specific URL asynchronously
+func (s *ImageCacheService) CacheImageFromURLAsync(appID int, imageURL string) {
+	go func() {
+		s.CacheImageFromURL(appID, imageURL)
+	}()
+}
+
 // GetBaseDir returns the base directory for cached images
 func (s *ImageCacheService) GetBaseDir() string {
 	return s.baseDir

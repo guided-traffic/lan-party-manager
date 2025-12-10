@@ -368,9 +368,10 @@ func (s *GameService) fetchUserGames(steamID string) ([]models.GameOwnership, er
 type storeAppDetailsResponse map[string]struct {
 	Success bool `json:"success"`
 	Data    struct {
-		Name       string `json:"name"`
-		IsFree     bool   `json:"is_free"`
-		Categories []struct {
+		Name        string `json:"name"`
+		HeaderImage string `json:"header_image"`
+		IsFree      bool   `json:"is_free"`
+		Categories  []struct {
 			ID          int    `json:"id"`
 			Description string `json:"description"`
 		} `json:"categories"`
@@ -423,6 +424,11 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 		game.OriginalCents = storeData.OriginalCents
 		game.DiscountPercent = storeData.DiscountPercent
 		game.PriceFormatted = storeData.PriceFormatted
+
+		// Cache image using the header_image URL from Steam API
+		if storeData.HeaderImageURL != "" {
+			s.imageCacheService.CacheImageFromURLAsync(game.AppID, storeData.HeaderImageURL)
+		}
 
 		// Save to DB cache
 		priceInfo := &repository.GamePriceInfo{
@@ -479,9 +485,10 @@ func (s *GameService) fetchGameCategoriesFromStore(appID int) (*GameStoreData, e
 
 	// Build price info
 	data := &GameStoreData{
-		Name:       appData.Data.Name,
-		Categories: categories,
-		IsFree:     appData.Data.IsFree,
+		Name:           appData.Data.Name,
+		HeaderImageURL: appData.Data.HeaderImage,
+		Categories:     categories,
+		IsFree:         appData.Data.IsFree,
 	}
 
 	if appData.Data.IsFree {
@@ -499,6 +506,7 @@ func (s *GameService) fetchGameCategoriesFromStore(appID int) (*GameStoreData, e
 // GameStoreData contains all data fetched from Steam Store API
 type GameStoreData struct {
 	Name            string
+	HeaderImageURL  string
 	Categories      []string
 	IsFree          bool
 	PriceCents      int
@@ -510,12 +518,11 @@ type GameStoreData struct {
 // fetchGameDetails fetches full details for a single game (used for pinned games not in library)
 // First checks DB cache, then fetches from Steam Store API if needed
 func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
-	// Cache image asynchronously
-	s.imageCacheService.CacheImageAsync(appID)
-
 	// First try DB cache
 	cached, err := s.gameCacheRepo.GetByAppID(appID)
 	if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
+		// For cached games, try to cache image asynchronously using old CDN URL as fallback
+		s.imageCacheService.CacheImageAsync(appID)
 		return &models.Game{
 			AppID:           appID,
 			Name:            cached.Name,
@@ -558,6 +565,11 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 	storeData, err := s.fetchGameCategoriesFromStore(appID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Cache image using the header_image URL from Steam API
+	if storeData.HeaderImageURL != "" {
+		s.imageCacheService.CacheImageFromURLAsync(appID, storeData.HeaderImageURL)
 	}
 
 	// Save to DB cache
