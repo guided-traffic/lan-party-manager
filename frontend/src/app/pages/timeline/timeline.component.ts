@@ -36,25 +36,27 @@ import { Subscription } from 'rxjs';
               [class.new]="isNew(vote)"
             >
               <div class="timeline-avatars">
-                <img
-                  [src]="vote.from_user.avatar_small || '/assets/default-avatar.png'"
-                  [alt]="vote.from_user.username"
-                  class="avatar"
-                />
+                <div class="avatar-wrapper">
+                  <img
+                    [src]="vote.from_user.avatar_small || '/assets/default-avatar.png'"
+                    [alt]="vote.from_user.username"
+                    class="avatar"
+                  />
+                  <span class="avatar-name">{{ vote.from_user.username }}</span>
+                </div>
                 <span class="arrow">→</span>
-                <img
-                  [src]="vote.to_user.avatar_small || '/assets/default-avatar.png'"
-                  [alt]="vote.to_user.username"
-                  class="avatar"
-                />
+                <div class="avatar-wrapper">
+                  <img
+                    [src]="vote.to_user.avatar_small || '/assets/default-avatar.png'"
+                    [alt]="vote.to_user.username"
+                    class="avatar"
+                  />
+                  <span class="avatar-name">{{ vote.to_user.username }}</span>
+                </div>
               </div>
 
               <div class="timeline-content">
                 <div class="timeline-text">
-                  <span class="username">{{ vote.from_user.username }}</span>
-                  hat
-                  <span class="username">{{ vote.to_user.username }}</span>
-                  als
                   <span
                     class="achievement-chip"
                     [class.positive]="vote.achievement.is_positive !== false"
@@ -65,18 +67,19 @@ import { Subscription } from 'rxjs';
                     }
                     {{ vote.achievement.name || vote.achievement_id }}
                   </span>
-                  bewertet
                 </div>
-                <div class="timeline-meta">
-                  <span class="timeline-points" [attr.title]="getPointsLabel(vote.points)">
-                    @for (i of getPointsArray(vote.points); track i) {
-                      <span class="credit-icon">💎</span>
-                    }
-                  </span>
-                  <span class="timeline-time">
-                    {{ formatTime(vote.created_at) }}
-                  </span>
-                </div>
+              </div>
+
+              <div class="timeline-meta">
+                <span class="timeline-points" [attr.title]="getPointsLabel(vote.points)">
+                  @for (i of getPointsArray(vote.points); track i) {
+                    <span class="credit-icon">💎</span>
+                  }
+                </span>
+                <span class="timeline-time">
+                  <span class="time-absolute">{{ formatAbsoluteTime(vote.created_at) }}</span>
+                  <span class="time-relative">({{ formatRelativeTime(vote.created_at) }})</span>
+                </span>
               </div>
             </div>
           }
@@ -142,12 +145,31 @@ import { Subscription } from 'rxjs';
     .timeline-avatars {
       display: flex;
       align-items: center;
-      gap: 30px;
+      gap: 16px;
       flex-shrink: 0;
+
+      .avatar-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        min-width: 64px;
+      }
 
       .avatar {
         position: relative;
         z-index: 1;
+      }
+
+      .avatar-name {
+        font-size: 13px;
+        font-weight: 500;
+        color: $text-secondary;
+        text-align: center;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .arrow {
@@ -155,6 +177,7 @@ import { Subscription } from 'rxjs';
         font-size: 14px;
         position: relative;
         z-index: 2;
+        margin-bottom: 18px;
       }
     }
 
@@ -163,6 +186,7 @@ import { Subscription } from 'rxjs';
       display: flex;
       flex-direction: column;
       gap: 4px;
+      min-width: 0;
     }
 
     .timeline-text {
@@ -177,10 +201,11 @@ import { Subscription } from 'rxjs';
 
     .timeline-meta {
       display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 12px;
-      color: $text-muted;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+      min-width: 80px;
     }
 
     .timeline-points {
@@ -194,8 +219,20 @@ import { Subscription } from 'rxjs';
     }
 
     .timeline-time {
+      display: flex;
+      gap: 6px;
       font-size: 12px;
       color: $text-muted;
+      white-space: nowrap;
+
+      .time-absolute {
+        color: $text-secondary;
+        font-weight: 500;
+      }
+
+      .time-relative {
+        color: $text-muted;
+      }
     }
 
     @media (max-width: 600px) {
@@ -212,6 +249,15 @@ import { Subscription } from 'rxjs';
       .timeline-content {
         text-align: center;
         align-items: center;
+        width: 100%;
+      }
+
+      .timeline-meta {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        gap: 12px;
       }
     }
   `]
@@ -285,7 +331,17 @@ export class TimelineComponent implements OnInit, OnDestroy {
     return this.newVoteIds().has(vote.id);
   }
 
-  formatTime(dateStr: string | undefined): string {
+  formatAbsoluteTime(dateStr: string | undefined): string {
+    if (!dateStr) return '';
+
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  formatRelativeTime(dateStr: string | undefined): string {
     if (!dateStr) return '';
 
     const date = new Date(dateStr);
@@ -302,10 +358,7 @@ export class TimelineComponent implements OnInit, OnDestroy {
 
     return date.toLocaleDateString('de-DE', {
       day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: '2-digit'
     });
   }
 
