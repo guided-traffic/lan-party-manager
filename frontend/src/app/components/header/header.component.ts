@@ -39,6 +39,10 @@ import { Subscription, interval } from 'rxjs';
                 <span class="nav-icon">💬</span>
                 Chat
               </a>
+              <a routerLink="/games" routerLinkActive="active" class="nav-link">
+                <span class="nav-icon">🎮</span>
+                Games
+              </a>
             </nav>
           }
         </div>

@@ -54,6 +54,12 @@ backend:
     JWT_EXPIRATION_DAYS: "7"
     CREDIT_INTERVAL_MINUTES: "10"
     CREDIT_MAX: "10"
+    # Comma-separated list of Steam IDs that have admin access
+    ADMIN_STEAM_IDS: ""
+    # Comma-separated list of Steam App IDs to pin at the top of the games list
+    # Find App IDs at https://steamdb.info/ or in Steam Store URLs
+    # Examples: 730 (CS2), 252490 (Rust), 4000 (Garry's Mod), 945360 (Among Us)
+    PINNED_GAME_IDS: ""
 
 secrets:
   # Set to false if you manage secrets externally

@@ -59,6 +59,14 @@ spec:
               value: "{{ .Values.backend.env.CREDIT_INTERVAL_MINUTES }}"
             - name: CREDIT_MAX
               value: "{{ .Values.backend.env.CREDIT_MAX }}"
+            {{- if .Values.backend.env.ADMIN_STEAM_IDS }}
+            - name: ADMIN_STEAM_IDS
+              value: "{{ .Values.backend.env.ADMIN_STEAM_IDS }}"
+            {{- end }}
+            {{- if .Values.backend.env.PINNED_GAME_IDS }}
+            - name: PINNED_GAME_IDS
+              value: "{{ .Values.backend.env.PINNED_GAME_IDS }}"
+            {{- end }}
             {{- if or .Values.secrets.existingSecret (and .Values.secrets.create .Values.secrets.steamApiKey) }}
             - name: STEAM_API_KEY
               valueFrom:

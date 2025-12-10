@@ -50,6 +50,9 @@ func main() {
 	// Initialize services
 	creditService := services.NewCreditService(cfg, userRepo)
 
+	// Initialize services
+	gameService := services.NewGameService(cfg, userRepo)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(cfg, userRepo, creditService)
 	userHandler := handlers.NewUserHandler(userRepo)
@@ -58,6 +61,7 @@ func main() {
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
 	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
+	gameHandler := handlers.NewGameHandler(gameService)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -125,6 +129,10 @@ func main() {
 			// Leaderboard
 			protected.GET("/leaderboard", voteHandler.GetLeaderboard)
 			protected.GET("/champions", voteHandler.GetChampions)
+
+			// Games
+			protected.GET("/games", gameHandler.GetMultiplayerGames)
+			protected.POST("/games/refresh", gameHandler.RefreshGames)
 
 			// Admin routes (require admin privileges)
 			admin := protected.Group("/admin")

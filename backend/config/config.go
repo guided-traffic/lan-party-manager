@@ -34,6 +34,9 @@ type Config struct {
 
 	// Admin
 	AdminSteamIDs []string
+
+	// Games
+	PinnedGameIDs []int // App IDs of pinned/featured games
 }
 
 // Load reads configuration from environment variables
@@ -53,6 +56,7 @@ func Load() *Config {
 		CreditIntervalMinutes: getEnvAsInt("CREDIT_INTERVAL_MINUTES", 10),
 		CreditMax:            getEnvAsInt("CREDIT_MAX", 10),
 		AdminSteamIDs:        getEnvAsStringSlice("ADMIN_STEAM_IDS", []string{}),
+		PinnedGameIDs:        getEnvAsIntSlice("PINNED_GAME_IDS", []int{}),
 	}
 
 	// Validate required configuration
@@ -98,6 +102,24 @@ func getEnvAsStringSlice(key string, defaultValue []string) []string {
 			trimmed := strings.TrimSpace(part)
 			if trimmed != "" {
 				result = append(result, trimmed)
+			}
+		}
+		return result
+	}
+	return defaultValue
+}
+
+// getEnvAsIntSlice reads an environment variable as a comma-separated list of integers
+func getEnvAsIntSlice(key string, defaultValue []int) []int {
+	if value, exists := os.LookupEnv(key); exists && value != "" {
+		parts := strings.Split(value, ",")
+		result := make([]int, 0, len(parts))
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				if intValue, err := strconv.Atoi(trimmed); err == nil {
+					result = append(result, intValue)
+				}
 			}
 		}
 		return result
