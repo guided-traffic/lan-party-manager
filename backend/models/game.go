@@ -11,6 +11,12 @@ type Game struct {
 	OwnerCount      int      `json:"owner_count"`       // Number of players who own this game
 	Owners          []string `json:"owners"`            // Steam IDs of owners
 	IsPinned        bool     `json:"is_pinned"`         // Whether this game is pinned/featured
+	// Price information
+	IsFree          bool   `json:"is_free"`           // True if free-to-play
+	PriceCents      int    `json:"price_cents"`       // Current price in cents (e.g., 5999 = 59.99€)
+	OriginalCents   int    `json:"original_cents"`    // Original price before discount
+	DiscountPercent int    `json:"discount_percent"`  // Discount percentage (0-100)
+	PriceFormatted  string `json:"price_formatted"`   // Formatted price string (e.g., "59,99€" or "Free")
 }
 
 // GameOwnership represents a player's ownership of a game

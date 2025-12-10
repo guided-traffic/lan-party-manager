@@ -28,6 +28,14 @@ export class GameService {
   }
 
   /**
+   * Invalidates the database cache (admin only)
+   * Forces re-fetch of all game data from Steam on next request
+   */
+  invalidateCache(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${environment.apiUrl}/admin/games/invalidate-cache`, {});
+  }
+
+  /**
    * Resolves relative image URLs to full URLs
    */
   private resolveImageUrls(response: GamesResponse): GamesResponse {

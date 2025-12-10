@@ -112,11 +112,23 @@ func runMigrations() error {
 			app_id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL,
 			categories TEXT DEFAULT '[]',
+			is_free INTEGER DEFAULT 0,
+			price_cents INTEGER DEFAULT 0,
+			original_cents INTEGER DEFAULT 0,
+			discount_percent INTEGER DEFAULT 0,
+			price_formatted TEXT DEFAULT '',
 			fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 		// Index for stale game lookups
 		`CREATE INDEX IF NOT EXISTS idx_game_cache_fetched ON game_cache(fetched_at)`,
+
+		// Add price columns to existing game_cache table (migration for existing DBs)
+		`ALTER TABLE game_cache ADD COLUMN is_free INTEGER DEFAULT 0`,
+		`ALTER TABLE game_cache ADD COLUMN price_cents INTEGER DEFAULT 0`,
+		`ALTER TABLE game_cache ADD COLUMN original_cents INTEGER DEFAULT 0`,
+		`ALTER TABLE game_cache ADD COLUMN discount_percent INTEGER DEFAULT 0`,
+		`ALTER TABLE game_cache ADD COLUMN price_formatted TEXT DEFAULT ''`,
 
 		// Fix any NULL last_credit_at values (can happen from failed migrations)
 		`UPDATE users SET last_credit_at = CURRENT_TIMESTAMP WHERE last_credit_at IS NULL`,

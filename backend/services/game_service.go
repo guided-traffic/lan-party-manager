@@ -171,13 +171,18 @@ func (s *GameService) fetchMultiplayerGames() (*models.GamesResponse, error) {
 
 					// Note: Image caching is deferred until after multiplayer filtering
 
-					// Try to load categories from DB cache
+					// Try to load categories and price from DB cache
 					cached, err := s.gameCacheRepo.GetByAppID(g.AppID)
 					if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
 						game.Categories = cached.GetCategories()
 						if cached.Name != "" {
 							game.Name = cached.Name
 						}
+						game.IsFree = cached.IsFree
+						game.PriceCents = cached.PriceCents
+						game.OriginalCents = cached.OriginalCents
+						game.DiscountPercent = cached.DiscountPercent
+						game.PriceFormatted = cached.PriceFormatted
 					}
 
 					gameMap[g.AppID] = game
@@ -200,6 +205,11 @@ func (s *GameService) fetchMultiplayerGames() (*models.GamesResponse, error) {
 				if cached.Name != "" {
 					game.Name = cached.Name
 				}
+				game.IsFree = cached.IsFree
+				game.PriceCents = cached.PriceCents
+				game.OriginalCents = cached.OriginalCents
+				game.DiscountPercent = cached.DiscountPercent
+				game.PriceFormatted = cached.PriceFormatted
 			} else {
 				gamesToFetch = append(gamesToFetch, game)
 			}
@@ -359,10 +369,19 @@ type storeAppDetailsResponse map[string]struct {
 	Success bool `json:"success"`
 	Data    struct {
 		Name       string `json:"name"`
+		IsFree     bool   `json:"is_free"`
 		Categories []struct {
 			ID          int    `json:"id"`
 			Description string `json:"description"`
 		} `json:"categories"`
+		PriceOverview *struct {
+			Currency         string `json:"currency"`
+			Initial          int    `json:"initial"`
+			Final            int    `json:"final"`
+			DiscountPercent  int    `json:"discount_percent"`
+			InitialFormatted string `json:"initial_formatted"`
+			FinalFormatted   string `json:"final_formatted"`
+		} `json:"price_overview"`
 	} `json:"data"`
 }
 
@@ -389,19 +408,31 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 			return
 		}
 
-		name, categories, err := s.fetchGameCategoriesFromStore(game.AppID)
+		storeData, err := s.fetchGameCategoriesFromStore(game.AppID)
 		if err != nil {
-			log.Printf("Could not fetch categories for %s (%d): %v", game.Name, game.AppID, err)
+			log.Printf("Could not fetch data for %s (%d): %v", game.Name, game.AppID, err)
 			continue
 		}
 
-		game.Categories = categories
-		if name != "" {
-			game.Name = name
+		game.Categories = storeData.Categories
+		if storeData.Name != "" {
+			game.Name = storeData.Name
 		}
+		game.IsFree = storeData.IsFree
+		game.PriceCents = storeData.PriceCents
+		game.OriginalCents = storeData.OriginalCents
+		game.DiscountPercent = storeData.DiscountPercent
+		game.PriceFormatted = storeData.PriceFormatted
 
 		// Save to DB cache
-		if err := s.gameCacheRepo.Upsert(game.AppID, game.Name, categories); err != nil {
+		priceInfo := &repository.GamePriceInfo{
+			IsFree:          storeData.IsFree,
+			PriceCents:      storeData.PriceCents,
+			OriginalCents:   storeData.OriginalCents,
+			DiscountPercent: storeData.DiscountPercent,
+			PriceFormatted:  storeData.PriceFormatted,
+		}
+		if err := s.gameCacheRepo.Upsert(game.AppID, game.Name, storeData.Categories, priceInfo); err != nil {
 			log.Printf("Failed to cache game %d: %v", game.AppID, err)
 		}
 
@@ -409,36 +440,36 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 	}
 }
 
-// fetchGameCategoriesFromStore fetches categories for a single game from Steam Store
-// Returns name, categories, and error. Handles 429 rate limiting.
-func (s *GameService) fetchGameCategoriesFromStore(appID int) (string, []string, error) {
-	url := fmt.Sprintf("%s/appdetails?appids=%d", steamStoreBaseURL, appID)
+// fetchGameCategoriesFromStore fetches categories and price for a single game from Steam Store
+// Returns GameStoreData and error. Handles 429 rate limiting.
+func (s *GameService) fetchGameCategoriesFromStore(appID int) (*GameStoreData, error) {
+	url := fmt.Sprintf("%s/appdetails?appids=%d&cc=de", steamStoreBaseURL, appID)
 
 	resp, err := s.httpClient.Get(url)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to call Steam Store API: %w", err)
+		return nil, fmt.Errorf("failed to call Steam Store API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Handle rate limiting
 	if resp.StatusCode == http.StatusTooManyRequests {
 		s.setRateLimited()
-		return "", nil, fmt.Errorf("rate limited (429)")
+		return nil, fmt.Errorf("rate limited (429)")
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", nil, fmt.Errorf("Steam Store API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("Steam Store API returned status %d", resp.StatusCode)
 	}
 
 	var apiResp storeAppDetailsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return "", nil, fmt.Errorf("failed to parse Steam Store API response: %w", err)
+		return nil, fmt.Errorf("failed to parse Steam Store API response: %w", err)
 	}
 
 	appIDStr := fmt.Sprintf("%d", appID)
 	appData, ok := apiResp[appIDStr]
 	if !ok || !appData.Success {
-		return "", nil, fmt.Errorf("game not found or not accessible")
+		return nil, fmt.Errorf("game not found or not accessible")
 	}
 
 	var categories []string
@@ -446,7 +477,34 @@ func (s *GameService) fetchGameCategoriesFromStore(appID int) (string, []string,
 		categories = append(categories, cat.Description)
 	}
 
-	return appData.Data.Name, categories, nil
+	// Build price info
+	data := &GameStoreData{
+		Name:       appData.Data.Name,
+		Categories: categories,
+		IsFree:     appData.Data.IsFree,
+	}
+
+	if appData.Data.IsFree {
+		data.PriceFormatted = "Free"
+	} else if appData.Data.PriceOverview != nil {
+		data.PriceCents = appData.Data.PriceOverview.Final
+		data.OriginalCents = appData.Data.PriceOverview.Initial
+		data.DiscountPercent = appData.Data.PriceOverview.DiscountPercent
+		data.PriceFormatted = appData.Data.PriceOverview.FinalFormatted
+	}
+
+	return data, nil
+}
+
+// GameStoreData contains all data fetched from Steam Store API
+type GameStoreData struct {
+	Name            string
+	Categories      []string
+	IsFree          bool
+	PriceCents      int
+	OriginalCents   int
+	DiscountPercent int
+	PriceFormatted  string
 }
 
 // fetchGameDetails fetches full details for a single game (used for pinned games not in library)
@@ -466,6 +524,11 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 			Categories:      cached.GetCategories(),
 			OwnerCount:      0,
 			Owners:          []string{},
+			IsFree:          cached.IsFree,
+			PriceCents:      cached.PriceCents,
+			OriginalCents:   cached.OriginalCents,
+			DiscountPercent: cached.DiscountPercent,
+			PriceFormatted:  cached.PriceFormatted,
 		}, nil
 	}
 
@@ -481,30 +544,47 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 				Categories:      cached.GetCategories(),
 				OwnerCount:      0,
 				Owners:          []string{},
+				IsFree:          cached.IsFree,
+				PriceCents:      cached.PriceCents,
+				OriginalCents:   cached.OriginalCents,
+				DiscountPercent: cached.DiscountPercent,
+				PriceFormatted:  cached.PriceFormatted,
 			}, nil
 		}
 		return nil, fmt.Errorf("rate limited and no cache available")
 	}
 
 	// Fetch from Steam Store API
-	name, categories, err := s.fetchGameCategoriesFromStore(appID)
+	storeData, err := s.fetchGameCategoriesFromStore(appID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Save to DB cache
-	if err := s.gameCacheRepo.Upsert(appID, name, categories); err != nil {
+	priceInfo := &repository.GamePriceInfo{
+		IsFree:          storeData.IsFree,
+		PriceCents:      storeData.PriceCents,
+		OriginalCents:   storeData.OriginalCents,
+		DiscountPercent: storeData.DiscountPercent,
+		PriceFormatted:  storeData.PriceFormatted,
+	}
+	if err := s.gameCacheRepo.Upsert(appID, storeData.Name, storeData.Categories, priceInfo); err != nil {
 		log.Printf("Failed to cache game %d: %v", appID, err)
 	}
 
 	return &models.Game{
 		AppID:           appID,
-		Name:            name,
+		Name:            storeData.Name,
 		HeaderImageURL:  s.imageCacheService.GetLocalImageURL(appID),
 		CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, appID),
-		Categories:      categories,
+		Categories:      storeData.Categories,
 		OwnerCount:      0,
 		Owners:          []string{},
+		IsFree:          storeData.IsFree,
+		PriceCents:      storeData.PriceCents,
+		OriginalCents:   storeData.OriginalCents,
+		DiscountPercent: storeData.DiscountPercent,
+		PriceFormatted:  storeData.PriceFormatted,
 	}, nil
 }
 

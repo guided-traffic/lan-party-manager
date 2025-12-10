@@ -1,7 +1,8 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameService } from '../../services/game.service';
 import { UserService } from '../../services/user.service';
+import { AuthService } from '../../services/auth.service';
 import { Game } from '../../models/game.model';
 import { User } from '../../models/user.model';
 
@@ -17,10 +18,18 @@ import { User } from '../../models/user.model';
           Multiplayer Games
         </h1>
         <p class="subtitle">Spiele die von LAN-Party Teilnehmern besessen werden</p>
-        <button class="refresh-btn" (click)="refreshGames()" [disabled]="loading()">
-          <span class="refresh-icon" [class.spinning]="loading()">🔄</span>
-          Aktualisieren
-        </button>
+        <div class="header-buttons">
+          <button class="refresh-btn" (click)="refreshGames()" [disabled]="loading()">
+            <span class="refresh-icon" [class.spinning]="loading()">🔄</span>
+            Aktualisieren
+          </button>
+          @if (isAdmin()) {
+            <button class="refresh-btn admin-btn" (click)="invalidateCache()" [disabled]="loading() || invalidating()">
+              <span class="refresh-icon" [class.spinning]="invalidating()">☁️</span>
+              Update von Steam
+            </button>
+          }
+        </div>
       </div>
 
       @if (loading()) {
@@ -50,7 +59,17 @@ import { User } from '../../models/user.model';
                     <img [src]="game.header_image_url" [alt]="game.name" loading="lazy" />
                   </div>
                   <div class="game-info">
-                    <h3>{{ game.name }}</h3>
+                    <div class="game-title-row">
+                      <h3>{{ game.name }}</h3>
+                      @if (game.price_formatted) {
+                        <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
+                          @if (game.discount_percent > 0) {
+                            <span class="discount-tag">-{{ game.discount_percent }}%</span>
+                          }
+                          <span class="price">{{ game.price_formatted }}</span>
+                        </div>
+                      }
+                    </div>
                     <div class="game-meta">
                       @if (game.owner_count > 0) {
                         <div class="owners" [title]="getOwnerNames(game.owners)">
@@ -101,7 +120,17 @@ import { User } from '../../models/user.model';
                     </div>
                   </div>
                   <div class="game-info">
-                    <h3>{{ game.name }}</h3>
+                    <div class="game-title-row">
+                      <h3>{{ game.name }}</h3>
+                      @if (game.price_formatted) {
+                        <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
+                          @if (game.discount_percent > 0) {
+                            <span class="discount-tag">-{{ game.discount_percent }}%</span>
+                          }
+                          <span class="price">{{ game.price_formatted }}</span>
+                        </div>
+                      }
+                    </div>
                     <div class="game-meta">
                       <div class="owners" [title]="getOwnerNames(game.owners)">
                         <span class="owner-icon">👥</span>
@@ -155,6 +184,13 @@ import { User } from '../../models/user.model';
         margin-bottom: 16px;
       }
 
+      .header-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
       .refresh-btn {
         background: $bg-tertiary;
         border: 1px solid $border-color;
@@ -175,6 +211,15 @@ import { User } from '../../models/user.model';
         &:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+
+        &.admin-btn {
+          border-color: $accent-warning;
+
+          &:hover:not(:disabled) {
+            background: rgba($accent-warning, 0.1);
+            border-color: $accent-warning;
+          }
         }
 
         .refresh-icon {
@@ -342,19 +387,59 @@ import { User } from '../../models/user.model';
             color: white;
           }
         }
+
       }
 
       .game-info {
         padding: 16px;
 
-        h3 {
-          font-size: 1rem;
+        .game-title-row {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
           margin-bottom: 10px;
-          line-height: 1.3;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+
+          h3 {
+            font-size: 1rem;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin: 0;
+            flex: 1;
+          }
+
+          .price-badge {
+            background: $bg-tertiary;
+            color: $text-primary;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            white-space: nowrap;
+
+            &.free {
+              background: rgba($accent-success, 0.9);
+              color: white;
+            }
+
+            &.discount {
+              .discount-tag {
+                background: $accent-success;
+                color: white;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 700;
+              }
+            }
+          }
         }
 
         .game-meta {
@@ -441,12 +526,16 @@ import { User } from '../../models/user.model';
 export class GamesComponent implements OnInit {
   private gameService = inject(GameService);
   private userService = inject(UserService);
+  private authService = inject(AuthService);
 
   loading = signal(true);
+  invalidating = signal(false);
   error = signal<string | null>(null);
   pinnedGames = signal<Game[]>([]);
   allGames = signal<Game[]>([]);
   users = signal<User[]>([]);
+
+  isAdmin = computed(() => this.authService.user()?.is_admin ?? false);
 
   // Map of steamId -> username for displaying owner names
   private userMap = new Map<string, string>();
@@ -463,6 +552,24 @@ export class GamesComponent implements OnInit {
         users.forEach(u => this.userMap.set(u.steam_id, u.username));
       },
       error: (err) => console.error('Failed to load users', err)
+    });
+  }
+
+  invalidateCache() {
+    this.invalidating.set(true);
+    this.error.set(null);
+
+    this.gameService.invalidateCache().subscribe({
+      next: () => {
+        this.invalidating.set(false);
+        // Now refresh to get fresh data from Steam
+        this.refreshGames();
+      },
+      error: (err) => {
+        console.error('Failed to invalidate cache', err);
+        this.error.set('Fehler beim Invalidieren des Caches.');
+        this.invalidating.set(false);
+      }
     });
   }
 

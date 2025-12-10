@@ -8,6 +8,12 @@ export interface Game {
   owner_count: number;
   owners: string[];
   is_pinned: boolean;
+  // Price information
+  is_free: boolean;
+  price_cents: number;
+  original_cents: number;
+  discount_percent: number;
+  price_formatted: string;
 }
 
 export interface GamesResponse {

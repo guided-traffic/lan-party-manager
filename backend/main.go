@@ -61,7 +61,7 @@ func main() {
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
 	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
-	gameHandler := handlers.NewGameHandler(gameService, imageCacheService)
+	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, cfg)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -145,6 +145,7 @@ func main() {
 				admin.PUT("/settings", settingsHandler.UpdateSettings)
 				admin.POST("/credits/reset", settingsHandler.ResetAllCredits)
 				admin.POST("/credits/give", settingsHandler.GiveEveryoneCredit)
+				admin.POST("/games/invalidate-cache", gameHandler.InvalidateDBCache)
 			}
 		}
 	}

@@ -7,6 +7,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/guided-traffic/lan-party-manager/backend/auth"
+	"github.com/guided-traffic/lan-party-manager/backend/config"
+	"github.com/guided-traffic/lan-party-manager/backend/repository"
 	"github.com/guided-traffic/lan-party-manager/backend/services"
 )
 
@@ -14,13 +17,17 @@ import (
 type GameHandler struct {
 	gameService       *services.GameService
 	imageCacheService *services.ImageCacheService
+	gameCacheRepo     *repository.GameCacheRepository
+	cfg               *config.Config
 }
 
 // NewGameHandler creates a new game handler
-func NewGameHandler(gameService *services.GameService, imageCacheService *services.ImageCacheService) *GameHandler {
+func NewGameHandler(gameService *services.GameService, imageCacheService *services.ImageCacheService, gameCacheRepo *repository.GameCacheRepository, cfg *config.Config) *GameHandler {
 	return &GameHandler{
 		gameService:       gameService,
 		imageCacheService: imageCacheService,
+		gameCacheRepo:     gameCacheRepo,
+		cfg:               cfg,
 	}
 }
 
@@ -52,6 +59,38 @@ func (h *GameHandler) RefreshGames(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, games)
+}
+
+// InvalidateDBCache invalidates the database cache, forcing a re-fetch from Steam
+// POST /api/v1/admin/games/invalidate-cache
+func (h *GameHandler) InvalidateDBCache(c *gin.Context) {
+	// Check admin permission
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	jwtClaims := claims.(*auth.Claims)
+	if !h.cfg.IsAdmin(jwtClaims.SteamID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+		return
+	}
+
+	// Invalidate DB cache
+	if err := h.gameCacheRepo.InvalidateAll(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to invalidate cache",
+		})
+		return
+	}
+
+	// Also invalidate in-memory cache
+	h.gameService.InvalidateCache()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Game cache invalidated. Games will be re-fetched from Steam on next request.",
+	})
 }
 
 // ServeGameImage serves a cached game image
