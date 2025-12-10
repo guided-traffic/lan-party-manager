@@ -48,7 +48,6 @@ import { User } from '../../models/user.model';
                 <div class="game-card pinned" (click)="openSteamStore(game.app_id)">
                   <div class="game-image">
                     <img [src]="game.header_image_url" [alt]="game.name" loading="lazy" />
-                    <div class="pinned-badge">📌</div>
                   </div>
                   <div class="game-info">
                     <h3>{{ game.name }}</h3>
