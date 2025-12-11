@@ -101,42 +101,54 @@ spec:
             - name: DB_PATH
               value: "{{ .Values.database.sqlite.path }}"
             {{- else if eq .Values.database.type "mysql" }}
-            # MySQL configuration
-            {{- if .Values.database.mysql.existingSecret.name }}
+            # MySQL configuration - each value can come from secret or inline
+            {{- if and .Values.database.mysql.existingSecret.name .Values.database.mysql.existingSecret.keys.host }}
             - name: MYSQL_HOST
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.mysql.existingSecret.name }}
                   key: {{ .Values.database.mysql.existingSecret.keys.host }}
+            {{- else }}
+            - name: MYSQL_HOST
+              value: "{{ .Values.database.mysql.host }}"
+            {{- end }}
+            {{- if and .Values.database.mysql.existingSecret.name .Values.database.mysql.existingSecret.keys.port }}
             - name: MYSQL_PORT
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.mysql.existingSecret.name }}
                   key: {{ .Values.database.mysql.existingSecret.keys.port }}
+            {{- else }}
+            - name: MYSQL_PORT
+              value: "{{ .Values.database.mysql.port }}"
+            {{- end }}
+            {{- if and .Values.database.mysql.existingSecret.name .Values.database.mysql.existingSecret.keys.user }}
             - name: MYSQL_USER
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.mysql.existingSecret.name }}
                   key: {{ .Values.database.mysql.existingSecret.keys.user }}
+            {{- else }}
+            - name: MYSQL_USER
+              value: "{{ .Values.database.mysql.user }}"
+            {{- end }}
+            {{- if and .Values.database.mysql.existingSecret.name .Values.database.mysql.existingSecret.keys.password }}
             - name: MYSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.mysql.existingSecret.name }}
                   key: {{ .Values.database.mysql.existingSecret.keys.password }}
+            {{- else }}
+            - name: MYSQL_PASSWORD
+              value: "{{ .Values.database.mysql.password }}"
+            {{- end }}
+            {{- if and .Values.database.mysql.existingSecret.name .Values.database.mysql.existingSecret.keys.database }}
             - name: MYSQL_DATABASE
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.mysql.existingSecret.name }}
                   key: {{ .Values.database.mysql.existingSecret.keys.database }}
             {{- else }}
-            - name: MYSQL_HOST
-              value: "{{ .Values.database.mysql.host }}"
-            - name: MYSQL_PORT
-              value: "{{ .Values.database.mysql.port }}"
-            - name: MYSQL_USER
-              value: "{{ .Values.database.mysql.user }}"
-            - name: MYSQL_PASSWORD
-              value: "{{ .Values.database.mysql.password }}"
             - name: MYSQL_DATABASE
               value: "{{ .Values.database.mysql.database }}"
             {{- end }}
