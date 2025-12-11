@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/guided-traffic/lan-party-manager/backend/config"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/config"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
 )
 
 const (
@@ -26,6 +26,9 @@ const (
 	rateLimitPausePeriod  = 5 * time.Minute // Pause for 5 minutes after 429 error
 )
 
+// SyncProgressCallback is called to report sync progress
+type SyncProgressCallback func(phase string, currentGame string, processed, total int)
+
 // GameService handles game-related operations
 type GameService struct {
 	cfg               *config.Config
@@ -35,6 +38,17 @@ type GameService struct {
 	httpClient        *http.Client
 	cache             *gamesCache
 	rateLimiter       *rateLimiter
+	syncProgress      *syncProgress
+}
+
+// syncProgress tracks background sync status
+type syncProgress struct {
+	mu         sync.RWMutex
+	isSyncing  bool
+	phase      string
+	current    string
+	processed  int
+	total      int
 }
 
 // gamesCache caches the full response to avoid rebuilding it constantly
@@ -61,8 +75,9 @@ func NewGameService(cfg *config.Config, userRepo *repository.UserRepository, gam
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
-		cache:       &gamesCache{},
-		rateLimiter: &rateLimiter{},
+		cache:        &gamesCache{},
+		rateLimiter:  &rateLimiter{},
+		syncProgress: &syncProgress{},
 	}
 }
 
@@ -704,6 +719,564 @@ func (s *GameService) fetchGameDetails(appID int) (*models.Game, error) {
 // GetPinnedGameIDs returns the list of pinned game IDs
 func (s *GameService) GetPinnedGameIDs() []int {
 	return s.cfg.PinnedGameIDs
+}
+
+// PrefetchPinnedGames fetches and caches pinned games at startup
+// This runs in the background and doesn't block startup
+func (s *GameService) PrefetchPinnedGames() {
+	pinnedIDs := s.cfg.PinnedGameIDs
+	if len(pinnedIDs) == 0 {
+		log.Println("[GameSync] No pinned games configured")
+		return
+	}
+
+	log.Printf("[GameSync] Prefetching %d pinned games in background...", len(pinnedIDs))
+
+	go func() {
+		const delayBetweenRequests = 300 * time.Millisecond
+		fetched := 0
+		skipped := 0
+
+		for _, appID := range pinnedIDs {
+			// Check if already in cache
+			cached, err := s.gameCacheRepo.GetByAppID(appID)
+			if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) && !cached.FetchFailed {
+				log.Printf("[GameSync] Pinned game %d already cached: %s", appID, cached.Name)
+				skipped++
+				continue
+			}
+
+			// Check rate limit
+			if s.isRateLimited() {
+				log.Printf("[GameSync] Rate limited - stopping pinned game prefetch")
+				break
+			}
+
+			// Fetch from Steam Store API
+			storeData, err := s.fetchGameCategoriesFromStore(appID)
+			if err != nil {
+				log.Printf("[GameSync] Failed to prefetch pinned game %d: %v", appID, err)
+				continue
+			}
+
+			// Cache the data
+			priceInfo := &repository.GamePriceInfo{
+				IsFree:          storeData.IsFree,
+				PriceCents:      storeData.PriceCents,
+				OriginalCents:   storeData.OriginalCents,
+				DiscountPercent: storeData.DiscountPercent,
+				PriceFormatted:  storeData.PriceFormatted,
+				ReviewScore:     storeData.ReviewScore,
+			}
+			if err := s.gameCacheRepo.Upsert(appID, storeData.Name, storeData.Categories, priceInfo); err != nil {
+				log.Printf("[GameSync] Failed to cache pinned game %d: %v", appID, err)
+			}
+
+			// Cache image
+			if storeData.HeaderImageURL != "" {
+				s.imageCacheService.CacheImageFromURLAsync(appID, storeData.HeaderImageURL)
+			}
+
+			log.Printf("[GameSync] Prefetched pinned game %d: %s", appID, storeData.Name)
+			fetched++
+
+			time.Sleep(delayBetweenRequests)
+		}
+
+		log.Printf("[GameSync] Pinned games prefetch complete: %d fetched, %d already cached", fetched, skipped)
+	}()
+}
+
+// GetSyncStatus returns the current sync status
+func (s *GameService) GetSyncStatus() (isSyncing bool, phase string, current string, processed, total int) {
+	s.syncProgress.mu.RLock()
+	defer s.syncProgress.mu.RUnlock()
+	return s.syncProgress.isSyncing, s.syncProgress.phase, s.syncProgress.current, s.syncProgress.processed, s.syncProgress.total
+}
+
+// IsSyncing returns whether a background sync is in progress
+func (s *GameService) IsSyncing() bool {
+	s.syncProgress.mu.RLock()
+	defer s.syncProgress.mu.RUnlock()
+	return s.syncProgress.isSyncing
+}
+
+// setSyncProgress updates the sync progress
+func (s *GameService) setSyncProgress(isSyncing bool, phase, current string, processed, total int) {
+	s.syncProgress.mu.Lock()
+	s.syncProgress.isSyncing = isSyncing
+	s.syncProgress.phase = phase
+	s.syncProgress.current = current
+	s.syncProgress.processed = processed
+	s.syncProgress.total = total
+	s.syncProgress.mu.Unlock()
+}
+
+// GetMultiplayerGamesCached returns only cached games without triggering a sync
+// This is fast and returns immediately
+func (s *GameService) GetMultiplayerGamesCached() (*models.GamesResponse, bool, error) {
+	// Check in-memory cache first
+	s.cache.mu.RLock()
+	if s.cache.games != nil && time.Now().Before(s.cache.expiresAt) {
+		cached := s.cache.games
+		s.cache.mu.RUnlock()
+		return cached, false, nil // false = no sync needed
+	}
+	s.cache.mu.RUnlock()
+
+	// Try to build response from DB cache only (no Steam API calls)
+	games, needsSync, err := s.buildGamesFromCache()
+	if err != nil {
+		return nil, needsSync, err
+	}
+
+	// Update in-memory cache
+	s.cache.mu.Lock()
+	s.cache.games = games
+	s.cache.expiresAt = time.Now().Add(5 * time.Minute)
+	s.cache.mu.Unlock()
+
+	return games, needsSync, nil
+}
+
+// buildGamesFromCache builds the games response using only DB-cached data
+func (s *GameService) buildGamesFromCache() (*models.GamesResponse, bool, error) {
+	users, err := s.userRepo.GetAll()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	pinnedGameIDs := s.cfg.PinnedGameIDs
+	needsSync := false
+
+	// Even with no users, we still want to show pinned games
+	if len(users) == 0 {
+		log.Printf("[GameSync] No users, loading pinned games only")
+		pinnedGames := s.loadPinnedGamesFromCache(&needsSync)
+		return &models.GamesResponse{
+			PinnedGames: pinnedGames,
+			AllGames:    []models.Game{},
+		}, needsSync, nil
+	}
+
+	log.Printf("[GameSync] Building games from cache for %d users", len(users))
+
+	// Collect all games from all users (this is fast - just Steam API call)
+	gameMap := make(map[int]*models.Game)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	needsSync = false
+
+	for _, user := range users {
+		wg.Add(1)
+		go func(steamID string) {
+			defer wg.Done()
+
+			log.Printf("[GameSync] Fetching owned games for user %s", steamID)
+			games, err := s.fetchUserGames(steamID)
+			if err != nil {
+				log.Printf("[GameSync] Failed to fetch games for user %s: %v", steamID, err)
+				return
+			}
+			log.Printf("[GameSync] User %s has %d games", steamID, len(games))
+
+			mu.Lock()
+			for _, g := range games {
+				if existing, ok := gameMap[g.AppID]; ok {
+					existing.OwnerCount++
+					existing.Owners = append(existing.Owners, steamID)
+					if g.PlaytimeForever > existing.PlaytimeForever {
+						existing.PlaytimeForever = g.PlaytimeForever
+					}
+				} else {
+					game := &models.Game{
+						AppID:           g.AppID,
+						Name:            g.Name,
+						HeaderImageURL:  s.imageCacheService.GetLocalImageURL(g.AppID),
+						CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, g.AppID),
+						PlaytimeForever: g.PlaytimeForever,
+						OwnerCount:      1,
+						Owners:          []string{steamID},
+						Categories:      []string{},
+					}
+
+					// Try to load from DB cache
+					cached, err := s.gameCacheRepo.GetByAppID(g.AppID)
+					if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
+						game.Categories = cached.GetCategories()
+						if cached.Name != "" {
+							game.Name = cached.Name
+						}
+						game.IsFree = cached.IsFree
+						game.PriceCents = cached.PriceCents
+						game.OriginalCents = cached.OriginalCents
+						game.DiscountPercent = cached.DiscountPercent
+						game.PriceFormatted = cached.PriceFormatted
+						game.ReviewScore = cached.ReviewScore
+					} else {
+						needsSync = true // At least one game needs category fetch
+					}
+
+					gameMap[g.AppID] = game
+				}
+			}
+			mu.Unlock()
+		}(user.SteamID)
+	}
+
+	wg.Wait()
+
+	log.Printf("[GameSync] Total unique games from all users: %d, needsSync: %v", len(gameMap), needsSync)
+
+	// Filter for multiplayer games and build response
+	var allGames []models.Game
+
+	for _, game := range gameMap {
+		if game.HasMultiplayerCategory() {
+			s.imageCacheService.CacheImageAsync(game.AppID)
+			for _, pinnedID := range pinnedGameIDs {
+				if pinnedID == game.AppID {
+					game.IsPinned = true
+					break
+				}
+			}
+			allGames = append(allGames, *game)
+		}
+	}
+
+	log.Printf("[GameSync] After multiplayer filter: %d games", len(allGames))
+
+	// Sort all games by owner count, then by name
+	sort.Slice(allGames, func(i, j int) bool {
+		if allGames[i].OwnerCount != allGames[j].OwnerCount {
+			return allGames[i].OwnerCount > allGames[j].OwnerCount
+		}
+		return allGames[i].Name < allGames[j].Name
+	})
+
+	// Separate pinned games
+	var pinnedGames []models.Game
+	var unpinnedGames []models.Game
+
+	for _, game := range allGames {
+		if game.IsPinned {
+			pinnedGames = append(pinnedGames, game)
+		} else {
+			unpinnedGames = append(unpinnedGames, game)
+		}
+	}
+
+	// Add pinned games that might not be in any user's library
+	for _, pinnedID := range pinnedGameIDs {
+		found := false
+		for _, g := range pinnedGames {
+			if g.AppID == pinnedID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// Try to load from cache first
+			cached, err := s.gameCacheRepo.GetByAppID(pinnedID)
+			if err == nil && cached != nil && !cached.FetchFailed {
+				game := models.Game{
+					AppID:           pinnedID,
+					Name:            cached.Name,
+					HeaderImageURL:  s.imageCacheService.GetLocalImageURL(pinnedID),
+					CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, pinnedID),
+					Categories:      cached.GetCategories(),
+					OwnerCount:      0,
+					Owners:          []string{},
+					IsPinned:        true,
+					IsFree:          cached.IsFree,
+					PriceCents:      cached.PriceCents,
+					OriginalCents:   cached.OriginalCents,
+					DiscountPercent: cached.DiscountPercent,
+					PriceFormatted:  cached.PriceFormatted,
+					ReviewScore:     cached.ReviewScore,
+				}
+				pinnedGames = append(pinnedGames, game)
+			} else {
+				needsSync = true // Pinned game needs to be fetched
+			}
+		}
+	}
+
+	// Sort pinned games by config order
+	sort.Slice(pinnedGames, func(i, j int) bool {
+		indexI := -1
+		indexJ := -1
+		for idx, id := range pinnedGameIDs {
+			if id == pinnedGames[i].AppID {
+				indexI = idx
+			}
+			if id == pinnedGames[j].AppID {
+				indexJ = idx
+			}
+		}
+		return indexI < indexJ
+	})
+
+	return &models.GamesResponse{
+		PinnedGames: pinnedGames,
+		AllGames:    unpinnedGames,
+	}, needsSync, nil
+}
+
+// loadPinnedGamesFromCache loads pinned games from DB cache
+func (s *GameService) loadPinnedGamesFromCache(needsSync *bool) []models.Game {
+	pinnedGameIDs := s.cfg.PinnedGameIDs
+	var pinnedGames []models.Game
+
+	for _, pinnedID := range pinnedGameIDs {
+		cached, err := s.gameCacheRepo.GetByAppID(pinnedID)
+		if err == nil && cached != nil && !cached.FetchFailed {
+			game := models.Game{
+				AppID:           pinnedID,
+				Name:            cached.Name,
+				HeaderImageURL:  s.imageCacheService.GetLocalImageURL(pinnedID),
+				CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, pinnedID),
+				Categories:      cached.GetCategories(),
+				OwnerCount:      0,
+				Owners:          []string{},
+				IsPinned:        true,
+				IsFree:          cached.IsFree,
+				PriceCents:      cached.PriceCents,
+				OriginalCents:   cached.OriginalCents,
+				DiscountPercent: cached.DiscountPercent,
+				PriceFormatted:  cached.PriceFormatted,
+				ReviewScore:     cached.ReviewScore,
+			}
+			pinnedGames = append(pinnedGames, game)
+			log.Printf("[GameSync] Loaded pinned game from cache: %s (%d)", cached.Name, pinnedID)
+		} else {
+			log.Printf("[GameSync] Pinned game %d not in cache, needs sync", pinnedID)
+			*needsSync = true
+		}
+	}
+
+	return pinnedGames
+}
+
+// SyncGamesInBackground fetches missing game data in the background
+// and calls the progress callback to report status
+func (s *GameService) SyncGamesInBackground(progressCallback SyncProgressCallback) {
+	// Prevent concurrent syncs
+	s.syncProgress.mu.Lock()
+	if s.syncProgress.isSyncing {
+		s.syncProgress.mu.Unlock()
+		log.Println("GameService: Background sync already in progress")
+		return
+	}
+	s.syncProgress.isSyncing = true
+	s.syncProgress.mu.Unlock()
+
+	go func() {
+		defer func() {
+			s.setSyncProgress(false, "", "", 0, 0)
+		}()
+
+		log.Println("GameService: Starting background sync")
+
+		// Get all registered users
+		users, err := s.userRepo.GetAll()
+		if err != nil {
+			log.Printf("GameService: Background sync failed to get users: %v", err)
+			return
+		}
+
+		if len(users) == 0 {
+			return
+		}
+
+		// Collect all games from all users
+		gameMap := make(map[int]*models.Game)
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+
+		s.setSyncProgress(true, "fetching_users", "", 0, len(users))
+		if progressCallback != nil {
+			progressCallback("fetching_users", "", 0, len(users))
+		}
+
+		processedUsers := 0
+		for _, user := range users {
+			wg.Add(1)
+			go func(steamID string, username string) {
+				defer wg.Done()
+
+				games, err := s.fetchUserGames(steamID)
+				if err != nil {
+					log.Printf("Failed to fetch games for user %s: %v", steamID, err)
+					return
+				}
+
+				mu.Lock()
+				processedUsers++
+				for _, g := range games {
+					if existing, ok := gameMap[g.AppID]; ok {
+						existing.OwnerCount++
+						existing.Owners = append(existing.Owners, steamID)
+						if g.PlaytimeForever > existing.PlaytimeForever {
+							existing.PlaytimeForever = g.PlaytimeForever
+						}
+					} else {
+						game := &models.Game{
+							AppID:           g.AppID,
+							Name:            g.Name,
+							HeaderImageURL:  s.imageCacheService.GetLocalImageURL(g.AppID),
+							CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, g.AppID),
+							PlaytimeForever: g.PlaytimeForever,
+							OwnerCount:      1,
+							Owners:          []string{steamID},
+							Categories:      []string{},
+						}
+
+						cached, err := s.gameCacheRepo.GetByAppID(g.AppID)
+						if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
+							game.Categories = cached.GetCategories()
+							if cached.Name != "" {
+								game.Name = cached.Name
+							}
+							game.IsFree = cached.IsFree
+							game.PriceCents = cached.PriceCents
+							game.OriginalCents = cached.OriginalCents
+							game.DiscountPercent = cached.DiscountPercent
+							game.PriceFormatted = cached.PriceFormatted
+							game.ReviewScore = cached.ReviewScore
+						}
+
+						gameMap[g.AppID] = game
+					}
+				}
+				mu.Unlock()
+			}(user.SteamID, user.Username)
+		}
+
+		wg.Wait()
+
+		// Identify games that need their categories fetched
+		var gamesToFetch []*models.Game
+		for _, game := range gameMap {
+			if len(game.Categories) == 0 {
+				cached, err := s.gameCacheRepo.GetByAppID(game.AppID)
+				if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
+					if cached.FetchFailed && !cached.IsStale(failedFetchRetryDelay) {
+						continue
+					} else if !cached.FetchFailed {
+						game.Categories = cached.GetCategories()
+						continue
+					}
+				}
+				gamesToFetch = append(gamesToFetch, game)
+			}
+		}
+
+		// Sort by owner count to prioritize popular games
+		sort.Slice(gamesToFetch, func(i, j int) bool {
+			return gamesToFetch[i].OwnerCount > gamesToFetch[j].OwnerCount
+		})
+
+		// Fetch categories with progress reporting
+		totalToFetch := len(gamesToFetch)
+		if totalToFetch > 0 {
+			s.setSyncProgress(true, "fetching_categories", "", 0, totalToFetch)
+			if progressCallback != nil {
+				progressCallback("fetching_categories", "", 0, totalToFetch)
+			}
+
+			s.fetchGameCategoriesWithProgress(gamesToFetch, func(processed int, currentGame string) {
+				s.setSyncProgress(true, "fetching_categories", currentGame, processed, totalToFetch)
+				if progressCallback != nil {
+					progressCallback("fetching_categories", currentGame, processed, totalToFetch)
+				}
+			})
+		}
+
+		// Count multiplayer games
+		multiplayerCount := 0
+		for _, game := range gameMap {
+			if game.HasMultiplayerCategory() {
+				multiplayerCount++
+			}
+		}
+
+		// Invalidate cache so next request gets fresh data
+		s.InvalidateCache()
+
+		log.Printf("GameService: Background sync complete. Found %d multiplayer games", multiplayerCount)
+		if progressCallback != nil {
+			progressCallback("complete", "", multiplayerCount, multiplayerCount)
+		}
+	}()
+}
+
+// fetchGameCategoriesWithProgress fetches categories with progress callback
+func (s *GameService) fetchGameCategoriesWithProgress(games []*models.Game, progressCallback func(processed int, currentGame string)) {
+	if len(games) == 0 {
+		return
+	}
+
+	if s.isRateLimited() {
+		log.Printf("Skipping Steam Store API calls - rate limited until %v", s.rateLimiter.pausedUntil)
+		return
+	}
+
+	const delayBetweenRequests = 300 * time.Millisecond
+
+	for i, game := range games {
+		if s.isRateLimited() {
+			log.Printf("Rate limit hit - stopping category fetches")
+			return
+		}
+
+		if progressCallback != nil {
+			progressCallback(i, game.Name)
+		}
+
+		storeData, err := s.fetchGameCategoriesFromStore(game.AppID)
+		if err != nil {
+			log.Printf("Could not fetch data for %s (%d): %v", game.Name, game.AppID, err)
+
+			if strings.Contains(err.Error(), "game not found") || strings.Contains(err.Error(), "not accessible") {
+				log.Printf("Game %s (%d) appears to be unavailable - caching failure", game.Name, game.AppID)
+				if cacheErr := s.gameCacheRepo.UpsertWithStatus(game.AppID, game.Name, []string{}, nil, true); cacheErr != nil {
+					log.Printf("Failed to cache failed fetch for game %d: %v", game.AppID, cacheErr)
+				}
+			}
+			continue
+		}
+
+		game.Categories = storeData.Categories
+		if storeData.Name != "" {
+			game.Name = storeData.Name
+		}
+		game.IsFree = storeData.IsFree
+		game.PriceCents = storeData.PriceCents
+		game.OriginalCents = storeData.OriginalCents
+		game.DiscountPercent = storeData.DiscountPercent
+		game.PriceFormatted = storeData.PriceFormatted
+		game.ReviewScore = storeData.ReviewScore
+
+		// Save to DB cache
+		priceInfo := &repository.GamePriceInfo{
+			IsFree:          storeData.IsFree,
+			PriceCents:      storeData.PriceCents,
+			OriginalCents:   storeData.OriginalCents,
+			DiscountPercent: storeData.DiscountPercent,
+			PriceFormatted:  storeData.PriceFormatted,
+			ReviewScore:     storeData.ReviewScore,
+		}
+		if err := s.gameCacheRepo.Upsert(game.AppID, game.Name, storeData.Categories, priceInfo); err != nil {
+			log.Printf("Failed to cache game %d: %v", game.AppID, err)
+		}
+
+		time.Sleep(delayBetweenRequests)
+	}
+
+	if progressCallback != nil {
+		progressCallback(len(games), "")
+	}
 }
 
 // Helper function to check if a slice contains a string

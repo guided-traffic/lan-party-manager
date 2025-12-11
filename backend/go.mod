@@ -1,4 +1,4 @@
-module github.com/guided-traffic/lan-party-manager/backend
+module github.com/guided-traffic/rate-your-mate/backend
 
 go 1.25.5
 

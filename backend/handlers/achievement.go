@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
 )
 
 // AchievementHandler handles achievement-related endpoints

@@ -18,7 +18,17 @@ export interface Game {
   review_score: number; // Percentage of positive reviews (0-100), -1 if not enough reviews
 }
 
+export interface SyncStatus {
+  needs_sync: boolean;
+  is_syncing: boolean;
+  phase: string;
+  current_game: string;
+  processed: number;
+  total: number;
+}
+
 export interface GamesResponse {
   pinned_games: Game[];
   all_games: Game[];
+  sync_status?: SyncStatus;
 }

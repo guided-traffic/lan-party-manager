@@ -6,14 +6,14 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/auth"
-	"github.com/guided-traffic/lan-party-manager/backend/config"
-	"github.com/guided-traffic/lan-party-manager/backend/database"
-	"github.com/guided-traffic/lan-party-manager/backend/handlers"
-	"github.com/guided-traffic/lan-party-manager/backend/middleware"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
-	"github.com/guided-traffic/lan-party-manager/backend/services"
-	"github.com/guided-traffic/lan-party-manager/backend/websocket"
+	"github.com/guided-traffic/rate-your-mate/backend/auth"
+	"github.com/guided-traffic/rate-your-mate/backend/config"
+	"github.com/guided-traffic/rate-your-mate/backend/database"
+	"github.com/guided-traffic/rate-your-mate/backend/handlers"
+	"github.com/guided-traffic/rate-your-mate/backend/middleware"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/services"
+	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
 // Version information - set via ldflags during build
@@ -78,15 +78,18 @@ func main() {
 	imageCacheService := services.NewImageCacheService()
 	gameService := services.NewGameService(cfg, userRepo, gameCacheRepo, imageCacheService)
 
+	// Prefetch pinned games in background at startup
+	gameService.PrefetchPinnedGames()
+
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(cfg, userRepo, creditService)
+	authHandler := handlers.NewAuthHandler(cfg, userRepo, creditService, gameService, wsHub)
 	userHandler := handlers.NewUserHandler(userRepo)
 	achievementHandler := handlers.NewAchievementHandler()
 	voteHandler := handlers.NewVoteHandler(voteRepo, userRepo, creditService, wsHub, cfg)
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
 	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo, voteRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
-	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, cfg)
+	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, cfg, wsHub)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -174,6 +177,8 @@ func main() {
 			// Games
 			protected.GET("/games", gameHandler.GetMultiplayerGames)
 			protected.POST("/games/refresh", gameHandler.RefreshGames)
+			protected.POST("/games/sync", gameHandler.StartBackgroundSync)
+			protected.GET("/games/sync/status", gameHandler.GetSyncStatus)
 
 			// Admin routes (require admin privileges)
 			admin := protected.Group("/admin")
@@ -187,6 +192,12 @@ func main() {
 				admin.POST("/credits/give", settingsHandler.GiveEveryoneCredit)
 				admin.POST("/votes/delete-all", settingsHandler.DeleteAllVotes)
 				admin.POST("/games/invalidate-cache", gameHandler.InvalidateDBCache)
+				// User management
+				admin.GET("/users", settingsHandler.GetAllUsersForAdmin)
+				admin.GET("/users/banned", settingsHandler.GetAllBannedUsers)
+				admin.POST("/users/:id/kick", settingsHandler.KickUser)
+				admin.POST("/users/:id/ban", settingsHandler.BanUser)
+				admin.POST("/users/unban/:steam_id", settingsHandler.UnbanUser)
 			}
 		}
 	}

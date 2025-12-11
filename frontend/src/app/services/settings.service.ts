@@ -18,6 +18,28 @@ export interface VerifyAdminPasswordResponse {
   error?: string;
 }
 
+export interface AdminUserInfo {
+  id: number;
+  steam_id: string;
+  username: string;
+  avatar_small: string;
+  created_at: string;
+}
+
+export interface BannedUser {
+  id: number;
+  steam_id: string;
+  username: string;
+  reason: string;
+  banned_by: string;
+  banned_at: string;
+}
+
+export interface KickBanResponse {
+  message: string;
+  username: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -84,6 +106,27 @@ export class SettingsService {
 
   deleteAllVotes(): Observable<{ message: string; votes_deleted: number }> {
     return this.http.post<{ message: string; votes_deleted: number }>(`${environment.apiUrl}/admin/votes/delete-all`, {});
+  }
+
+  // User management
+  getAllUsers(): Observable<{ users: AdminUserInfo[] }> {
+    return this.http.get<{ users: AdminUserInfo[] }>(`${environment.apiUrl}/admin/users`);
+  }
+
+  getBannedUsers(): Observable<{ banned_users: BannedUser[] }> {
+    return this.http.get<{ banned_users: BannedUser[] }>(`${environment.apiUrl}/admin/users/banned`);
+  }
+
+  kickUser(userId: number, reason?: string): Observable<KickBanResponse> {
+    return this.http.post<KickBanResponse>(`${environment.apiUrl}/admin/users/${userId}/kick`, { reason });
+  }
+
+  banUser(userId: number, reason?: string): Observable<KickBanResponse> {
+    return this.http.post<KickBanResponse>(`${environment.apiUrl}/admin/users/${userId}/ban`, { reason });
+  }
+
+  unbanUser(steamId: string): Observable<KickBanResponse> {
+    return this.http.post<KickBanResponse>(`${environment.apiUrl}/admin/users/unban/${steamId}`, {});
   }
 
   // Called by WebSocket service when settings are updated

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/auth"
-	"github.com/guided-traffic/lan-party-manager/backend/websocket"
+	"github.com/guided-traffic/rate-your-mate/backend/auth"
+	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
 // WebSocketHandler handles WebSocket connections

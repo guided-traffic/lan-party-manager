@@ -6,11 +6,12 @@ import (
 	"net/url"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/auth"
-	"github.com/guided-traffic/lan-party-manager/backend/config"
-	"github.com/guided-traffic/lan-party-manager/backend/middleware"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
-	"github.com/guided-traffic/lan-party-manager/backend/services"
+	"github.com/guided-traffic/rate-your-mate/backend/auth"
+	"github.com/guided-traffic/rate-your-mate/backend/config"
+	"github.com/guided-traffic/rate-your-mate/backend/middleware"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/services"
+	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
 // AuthHandler handles authentication endpoints
@@ -21,10 +22,12 @@ type AuthHandler struct {
 	jwtService    *auth.JWTService
 	userRepo      *repository.UserRepository
 	creditService *services.CreditService
+	gameService   *services.GameService
+	wsHub         *websocket.Hub
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(cfg *config.Config, userRepo *repository.UserRepository, creditService *services.CreditService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, userRepo *repository.UserRepository, creditService *services.CreditService, gameService *services.GameService, wsHub *websocket.Hub) *AuthHandler {
 	return &AuthHandler{
 		cfg:           cfg,
 		steamAuth:     auth.NewSteamAuth(cfg.BackendURL),
@@ -32,6 +35,8 @@ func NewAuthHandler(cfg *config.Config, userRepo *repository.UserRepository, cre
 		jwtService:    auth.NewJWTService(cfg.JWTSecret, cfg.JWTExpirationDays),
 		userRepo:      userRepo,
 		creditService: creditService,
+		gameService:   gameService,
+		wsHub:         wsHub,
 	}
 }
 
@@ -72,6 +77,19 @@ func (h *AuthHandler) SteamCallback(c *gin.Context) {
 
 	log.Printf("Steam login successful for Steam ID: %s", steamID)
 
+	// Check if user is banned
+	banned, err := h.userRepo.IsBanned(steamID)
+	if err != nil {
+		log.Printf("Failed to check ban status for %s: %v", steamID, err)
+		h.redirectWithError(c, "Failed to verify account status")
+		return
+	}
+	if banned {
+		log.Printf("Banned user attempted to login: %s", steamID)
+		h.redirectWithError(c, "Dein Account wurde gesperrt")
+		return
+	}
+
 	// Fetch player profile from Steam API
 	var username, avatarURL, avatarSmall, profileURL string
 	if h.steamAPI.IsConfigured() {
@@ -102,6 +120,8 @@ func (h *AuthHandler) SteamCallback(c *gin.Context) {
 
 	if isNew {
 		log.Printf("Created new user: %s (ID: %d)", username, user.ID)
+		// Trigger background sync for new user's game library
+		h.triggerBackgroundSync()
 	} else {
 		log.Printf("Updated existing user: %s (ID: %d)", username, user.ID)
 	}
@@ -211,4 +231,41 @@ func (h *AuthHandler) redirectWithError(c *gin.Context, errorMsg string) {
 	redirectURL.RawQuery = query.Encode()
 
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL.String())
+}
+
+// triggerBackgroundSync starts a background sync for game libraries
+// This is called when a new user registers to fetch their game library
+func (h *AuthHandler) triggerBackgroundSync() {
+	if h.gameService == nil || h.wsHub == nil {
+		log.Println("AuthHandler: GameService or WebSocket Hub not configured, skipping background sync")
+		return
+	}
+
+	// Check if sync is already in progress
+	if h.gameService.IsSyncing() {
+		log.Println("AuthHandler: Background sync already in progress")
+		return
+	}
+
+	log.Println("AuthHandler: Triggering background sync for new user")
+
+	// Start background sync with WebSocket progress updates
+	h.gameService.SyncGamesInBackground(func(phase string, currentGame string, processed, total int) {
+		percentage := 0
+		if total > 0 {
+			percentage = (processed * 100) / total
+		}
+
+		if phase == "complete" {
+			h.wsHub.BroadcastGamesSyncComplete(processed)
+		} else {
+			h.wsHub.BroadcastGamesSyncProgress(&websocket.GamesSyncProgressPayload{
+				Phase:          phase,
+				CurrentGame:    currentGame,
+				ProcessedCount: processed,
+				TotalCount:     total,
+				Percentage:     percentage,
+			})
+		}
+	})
 }

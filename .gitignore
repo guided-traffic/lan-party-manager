@@ -16,7 +16,7 @@ Thumbs.db
 # Backend
 backend/.env
 backend/data/
-backend/lan-party-manager
+backend/rate-your-mate
 *.db
 
 # Frontend

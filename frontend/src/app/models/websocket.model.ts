@@ -1,4 +1,4 @@
-export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'settings_update' | 'credits_reset' | 'credits_given' | 'chat_message' | 'new_king' | 'error';
+export type WebSocketMessageType = 'vote_received' | 'new_vote' | 'user_joined' | 'settings_update' | 'credits_reset' | 'credits_given' | 'chat_message' | 'new_king' | 'games_sync_progress' | 'games_sync_complete' | 'error';
 
 export interface WebSocketMessage<T = unknown> {
   type: WebSocketMessageType;
@@ -51,4 +51,17 @@ export interface ChatMessagePayload {
     count: number;
   }>;
   created_at: string;
+}
+
+export interface GamesSyncProgressPayload {
+  phase: 'fetching_users' | 'fetching_categories' | 'complete';
+  current_game: string;
+  processed_count: number;
+  total_count: number;
+  percentage: number;
+}
+
+export interface GamesSyncCompletePayload {
+  message: string;
+  total_games: number;
 }

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/guided-traffic/lan-party-manager/backend/database"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/database"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
 )
 
 // ChatRepository handles chat message database operations

@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/middleware"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
-	"github.com/guided-traffic/lan-party-manager/backend/websocket"
+	"github.com/guided-traffic/rate-your-mate/backend/middleware"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
 // ChatHandler handles chat-related requests

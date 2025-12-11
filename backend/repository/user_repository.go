@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/guided-traffic/lan-party-manager/backend/database"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/database"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
 )
 
 // UserRepository handles user database operations
@@ -300,4 +300,125 @@ func (r *UserRepository) FindOrCreate(steamID, username, avatarURL, avatarSmall,
 	}
 
 	return user, true, nil // true = new user created
+}
+
+// DeleteByID deletes a user by ID and returns the number of rows affected
+func (r *UserRepository) DeleteByID(id uint64) error {
+	return database.WithRetry(func() error {
+		_, err := database.DB.Exec(`DELETE FROM users WHERE id = ?`, id)
+		if err != nil {
+			return fmt.Errorf("failed to delete user: %w", err)
+		}
+		return nil
+	})
+}
+
+// DeleteBySteamID deletes a user by Steam ID
+func (r *UserRepository) DeleteBySteamID(steamID string) error {
+	return database.WithRetry(func() error {
+		_, err := database.DB.Exec(`DELETE FROM users WHERE steam_id = ?`, steamID)
+		if err != nil {
+			return fmt.Errorf("failed to delete user: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetAllForAdmin returns all users with admin-relevant info
+func (r *UserRepository) GetAllForAdmin() ([]models.AdminUserInfo, error) {
+	rows, err := database.DB.Query(`
+		SELECT id, steam_id, username, avatar_small, created_at
+		FROM users ORDER BY username`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.AdminUserInfo
+	for rows.Next() {
+		var user models.AdminUserInfo
+		err := rows.Scan(&user.ID, &user.SteamID, &user.Username, &user.AvatarSmall, &user.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user row: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// IsBanned checks if a Steam ID is banned
+func (r *UserRepository) IsBanned(steamID string) (bool, error) {
+	var count int
+	err := database.DB.QueryRow(`SELECT COUNT(*) FROM banned_users WHERE steam_id = ?`, steamID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("failed to check ban status: %w", err)
+	}
+	return count > 0, nil
+}
+
+// GetBannedUser returns the ban info for a Steam ID
+func (r *UserRepository) GetBannedUser(steamID string) (*models.BannedUser, error) {
+	var ban models.BannedUser
+	err := database.DB.QueryRow(`
+		SELECT id, steam_id, username, reason, banned_by, banned_at
+		FROM banned_users WHERE steam_id = ?`, steamID,
+	).Scan(&ban.ID, &ban.SteamID, &ban.Username, &ban.Reason, &ban.BannedBy, &ban.BannedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get banned user: %w", err)
+	}
+	return &ban, nil
+}
+
+// BanUser adds a user to the ban list
+func (r *UserRepository) BanUser(steamID, username, reason, bannedBy string) error {
+	return database.WithRetry(func() error {
+		_, err := database.DB.Exec(`
+			INSERT INTO banned_users (steam_id, username, reason, banned_by)
+			VALUES (?, ?, ?, ?)`,
+			steamID, username, reason, bannedBy,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to ban user: %w", err)
+		}
+		return nil
+	})
+}
+
+// UnbanUser removes a user from the ban list
+func (r *UserRepository) UnbanUser(steamID string) error {
+	return database.WithRetry(func() error {
+		_, err := database.DB.Exec(`DELETE FROM banned_users WHERE steam_id = ?`, steamID)
+		if err != nil {
+			return fmt.Errorf("failed to unban user: %w", err)
+		}
+		return nil
+	})
+}
+
+// GetAllBannedUsers returns all banned users
+func (r *UserRepository) GetAllBannedUsers() ([]models.BannedUser, error) {
+	rows, err := database.DB.Query(`
+		SELECT id, steam_id, username, reason, banned_by, banned_at
+		FROM banned_users ORDER BY banned_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get banned users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.BannedUser
+	for rows.Next() {
+		var user models.BannedUser
+		err := rows.Scan(&user.ID, &user.SteamID, &user.Username, &user.Reason, &user.BannedBy, &user.BannedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan banned user row: %w", err)
+		}
+		users = append(users, user)
+	}
+
+	return users, nil
 }

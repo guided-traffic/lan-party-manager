@@ -37,3 +37,22 @@ func (u *User) ToPublic() PublicUser {
 		ProfileURL:  u.ProfileURL,
 	}
 }
+
+// BannedUser represents a banned player
+type BannedUser struct {
+	ID        uint64    `json:"id"`
+	SteamID   string    `json:"steam_id"`
+	Username  string    `json:"username"`
+	Reason    string    `json:"reason"`
+	BannedBy  string    `json:"banned_by"`
+	BannedAt  time.Time `json:"banned_at"`
+}
+
+// AdminUserInfo represents user info for admin view
+type AdminUserInfo struct {
+	ID          uint64    `json:"id"`
+	SteamID     string    `json:"steam_id"`
+	Username    string    `json:"username"`
+	AvatarSmall string    `json:"avatar_small"`
+	CreatedAt   time.Time `json:"created_at"`
+}

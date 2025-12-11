@@ -2,7 +2,7 @@ import { Injectable, signal, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
 import { ConnectionStatusService } from './connection-status.service';
-import { WebSocketMessage, VotePayload, SettingsPayload, CreditActionPayload, ChatMessagePayload, NewKingPayload } from '../models/websocket.model';
+import { WebSocketMessage, VotePayload, SettingsPayload, CreditActionPayload, ChatMessagePayload, NewKingPayload, GamesSyncProgressPayload, GamesSyncCompletePayload } from '../models/websocket.model';
 import { Subject, Observable } from 'rxjs';
 
 @Injectable({
@@ -26,6 +26,8 @@ export class WebSocketService {
   readonly creditsGiven$ = new Subject<CreditActionPayload>();
   readonly chatMessage$ = new Subject<ChatMessagePayload>();
   readonly newKing$ = new Subject<NewKingPayload>();
+  readonly gamesSyncProgress$ = new Subject<GamesSyncProgressPayload>();
+  readonly gamesSyncComplete$ = new Subject<GamesSyncCompletePayload>();
 
   // General messages observable for timeline component
   private messagesSubject = new Subject<{ type: string; payload: VotePayload }>();
@@ -107,7 +109,7 @@ export class WebSocketService {
     }
   }
 
-  private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload | CreditActionPayload | ChatMessagePayload | NewKingPayload>): void {
+  private handleMessage(message: WebSocketMessage<VotePayload | SettingsPayload | CreditActionPayload | ChatMessagePayload | NewKingPayload | GamesSyncProgressPayload | GamesSyncCompletePayload>): void {
     switch (message.type) {
       case 'new_vote':
         console.log('WebSocket: New vote received', message.payload);
@@ -133,6 +135,14 @@ export class WebSocketService {
       case 'new_king':
         console.log('WebSocket: New king received', message.payload);
         this.newKing$.next(message.payload as NewKingPayload);
+        break;
+      case 'games_sync_progress':
+        console.log('WebSocket: Games sync progress received', message.payload);
+        this.gamesSyncProgress$.next(message.payload as GamesSyncProgressPayload);
+        break;
+      case 'games_sync_complete':
+        console.log('WebSocket: Games sync complete received', message.payload);
+        this.gamesSyncComplete$.next(message.payload as GamesSyncCompletePayload);
         break;
       default:
         console.log('WebSocket: Unknown message type', message.type);

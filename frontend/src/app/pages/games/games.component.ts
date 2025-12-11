@@ -1,10 +1,12 @@
-import { Component, OnInit, signal, inject, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { GameService } from '../../services/game.service';
 import { UserService } from '../../services/user.service';
 import { AuthService } from '../../services/auth.service';
-import { Game } from '../../models/game.model';
+import { WebSocketService } from '../../services/websocket.service';
+import { Game, SyncStatus } from '../../models/game.model';
 import { User } from '../../models/user.model';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-games',
@@ -19,6 +21,37 @@ import { User } from '../../models/user.model';
         </h1>
         <p class="subtitle">Spiele die von LAN-Party Teilnehmern besessen werden</p>
       </div>
+
+      <!-- Sync Status Banner -->
+      @if (isSyncing()) {
+        <div class="sync-banner">
+          <div class="sync-content">
+            <div class="sync-spinner"></div>
+            <div class="sync-info">
+              <span class="sync-text">
+                @if (syncPhase() === 'fetching_users') {
+                  Lade Spielerbibliotheken...
+                } @else if (syncPhase() === 'fetching_categories') {
+                  Aktualisiere Spieldetails...
+                } @else {
+                  Synchronisiere Bibliothek...
+                }
+              </span>
+              @if (syncTotal() > 0) {
+                <div class="sync-progress">
+                  <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="syncPercentage()"></div>
+                  </div>
+                  <span class="progress-text">{{ syncProcessed() }}/{{ syncTotal() }} ({{ syncPercentage() }}%)</span>
+                </div>
+              }
+              @if (syncCurrentGame()) {
+                <span class="current-game">{{ syncCurrentGame() }}</span>
+              }
+            </div>
+          </div>
+        </div>
+      }
 
       @if (loading()) {
         <div class="loading">
@@ -168,6 +201,85 @@ import { User } from '../../models/user.model';
       max-width: 1200px;
       margin: 0 auto;
       padding: 24px;
+    }
+
+    .sync-banner {
+      background: linear-gradient(135deg, rgba($accent-primary, 0.15) 0%, rgba($accent-primary, 0.05) 100%);
+      border: 1px solid rgba($accent-primary, 0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .sync-content {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .sync-spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba($accent-primary, 0.3);
+      border-top-color: $accent-primary;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .sync-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .sync-text {
+      font-weight: 500;
+      color: $text-primary;
+    }
+
+    .sync-progress {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 6px;
+      background: rgba($accent-primary, 0.2);
+      border-radius: 3px;
+      overflow: hidden;
+      max-width: 200px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: $accent-primary;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: 0.875rem;
+      color: $text-secondary;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .current-game {
+      font-size: 0.875rem;
+      color: $text-secondary;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 300px;
     }
 
     .page-header {
@@ -577,13 +689,30 @@ import { User } from '../../models/user.model';
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
         gap: 16px;
       }
+
+      .sync-banner {
+        padding: 12px 16px;
+
+        .sync-content {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .progress-bar {
+          max-width: 100%;
+        }
+      }
     }
   `]
 })
-export class GamesComponent implements OnInit {
+export class GamesComponent implements OnInit, OnDestroy {
   private gameService = inject(GameService);
   private userService = inject(UserService);
   private authService = inject(AuthService);
+  private wsService = inject(WebSocketService);
+
+  private subscriptions: Subscription[] = [];
 
   loading = signal(true);
   invalidating = signal(false);
@@ -591,6 +720,18 @@ export class GamesComponent implements OnInit {
   pinnedGames = signal<Game[]>([]);
   allGames = signal<Game[]>([]);
   users = signal<User[]>([]);
+
+  // Sync status signals
+  isSyncing = signal(false);
+  syncPhase = signal<string>('');
+  syncCurrentGame = signal<string>('');
+  syncProcessed = signal(0);
+  syncTotal = signal(0);
+  syncPercentage = computed(() => {
+    const total = this.syncTotal();
+    if (total === 0) return 0;
+    return Math.round((this.syncProcessed() / total) * 100);
+  });
 
   isAdmin = computed(() => this.authService.user()?.is_admin ?? false);
 
@@ -600,6 +741,37 @@ export class GamesComponent implements OnInit {
   ngOnInit() {
     this.loadUsers();
     this.loadGames();
+    this.setupWebSocketListeners();
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  private setupWebSocketListeners() {
+    // Listen for sync progress updates
+    this.subscriptions.push(
+      this.wsService.gamesSyncProgress$.subscribe(progress => {
+        this.isSyncing.set(true);
+        this.syncPhase.set(progress.phase);
+        this.syncCurrentGame.set(progress.current_game);
+        this.syncProcessed.set(progress.processed_count);
+        this.syncTotal.set(progress.total_count);
+      })
+    );
+
+    // Listen for sync complete
+    this.subscriptions.push(
+      this.wsService.gamesSyncComplete$.subscribe(() => {
+        this.isSyncing.set(false);
+        this.syncPhase.set('');
+        this.syncCurrentGame.set('');
+        this.syncProcessed.set(0);
+        this.syncTotal.set(0);
+        // Reload games to get updated data
+        this.loadGamesQuietly();
+      })
+    );
   }
 
   loadUsers() {
@@ -639,11 +811,50 @@ export class GamesComponent implements OnInit {
         this.pinnedGames.set(response.pinned_games || []);
         this.allGames.set(response.all_games || []);
         this.loading.set(false);
+
+        // Check sync status and trigger background sync if needed
+        if (response.sync_status) {
+          if (response.sync_status.is_syncing) {
+            this.isSyncing.set(true);
+            this.syncPhase.set(response.sync_status.phase);
+            this.syncCurrentGame.set(response.sync_status.current_game);
+            this.syncProcessed.set(response.sync_status.processed);
+            this.syncTotal.set(response.sync_status.total);
+          } else if (response.sync_status.needs_sync) {
+            // Trigger background sync
+            this.startBackgroundSync();
+          }
+        }
       },
       error: (err) => {
         console.error('Failed to load games', err);
         this.error.set('Fehler beim Laden der Spiele. Bitte versuche es erneut.');
         this.loading.set(false);
+      }
+    });
+  }
+
+  // Load games without showing loading spinner (used after sync complete)
+  private loadGamesQuietly() {
+    this.gameService.getMultiplayerGames().subscribe({
+      next: (response) => {
+        this.pinnedGames.set(response.pinned_games || []);
+        this.allGames.set(response.all_games || []);
+      },
+      error: (err) => console.error('Failed to reload games after sync', err)
+    });
+  }
+
+  private startBackgroundSync() {
+    this.gameService.startBackgroundSync().subscribe({
+      next: () => {
+        console.log('Background sync started');
+      },
+      error: (err) => {
+        // 409 Conflict means sync is already in progress
+        if (err.status !== 409) {
+          console.error('Failed to start background sync', err);
+        }
       }
     });
   }

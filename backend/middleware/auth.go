@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/auth"
+	"github.com/guided-traffic/rate-your-mate/backend/auth"
 )
 
 const (

@@ -1,15 +1,16 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/config"
-	"github.com/guided-traffic/lan-party-manager/backend/middleware"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
-	"github.com/guided-traffic/lan-party-manager/backend/websocket"
+	"github.com/guided-traffic/rate-your-mate/backend/config"
+	"github.com/guided-traffic/rate-your-mate/backend/middleware"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
 // SettingsHandler handles admin settings endpoints
@@ -307,5 +308,187 @@ func (h *SettingsHandler) DeleteAllVotes(c *gin.Context) {
 	c.JSON(http.StatusOK, DeleteAllVotesResponse{
 		Message:      "Alle Votes wurden gelöscht",
 		VotesDeleted: votesDeleted,
+	})
+}
+
+// KickUserRequest represents the request body for POST /admin/users/:id/kick
+type KickUserRequest struct {
+	Reason string `json:"reason"`
+}
+
+// BanUserRequest represents the request body for POST /admin/users/:id/ban
+type BanUserRequest struct {
+	Reason string `json:"reason"`
+}
+
+// GetAllUsersForAdmin returns all users for admin management
+// GET /api/v1/admin/users
+func (h *SettingsHandler) GetAllUsersForAdmin(c *gin.Context) {
+	users, err := h.userRepo.GetAllForAdmin()
+	if err != nil {
+		log.Printf("Error getting users for admin: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get users",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"users": users,
+	})
+}
+
+// GetAllBannedUsers returns all banned users
+// GET /api/v1/admin/users/banned
+func (h *SettingsHandler) GetAllBannedUsers(c *gin.Context) {
+	users, err := h.userRepo.GetAllBannedUsers()
+	if err != nil {
+		log.Printf("Error getting banned users: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get banned users",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"banned_users": users,
+	})
+}
+
+// KickUser removes a user and all their data
+// POST /api/v1/admin/users/:id/kick
+func (h *SettingsHandler) KickUser(c *gin.Context) {
+	claims, _ := middleware.GetClaims(c)
+
+	userID := c.Param("id")
+
+	// Get user to kick
+	var id uint64
+	if _, err := fmt.Sscanf(userID, "%d", &id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	user, err := h.userRepo.GetByID(id)
+	if err != nil {
+		log.Printf("Error getting user for kick: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Delete the user (cascade will handle votes and chat messages)
+	if err := h.userRepo.DeleteByID(id); err != nil {
+		log.Printf("Error kicking user %d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to kick user"})
+		return
+	}
+
+	log.Printf("Admin %s kicked user %s (%s)", claims.SteamID, user.Username, user.SteamID)
+
+	// Broadcast user kicked to all connected clients
+	h.wsHub.BroadcastUserKicked(user.ID, user.Username)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Spieler wurde gekickt",
+		"username": user.Username,
+	})
+}
+
+// BanUser bans a user (removes them and prevents re-login)
+// POST /api/v1/admin/users/:id/ban
+func (h *SettingsHandler) BanUser(c *gin.Context) {
+	claims, _ := middleware.GetClaims(c)
+
+	userID := c.Param("id")
+
+	var req BanUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Reason is optional
+		req.Reason = ""
+	}
+
+	// Get user to ban
+	var id uint64
+	if _, err := fmt.Sscanf(userID, "%d", &id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	user, err := h.userRepo.GetByID(id)
+	if err != nil {
+		log.Printf("Error getting user for ban: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Prevent admin from banning themselves
+	if user.SteamID == claims.SteamID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Du kannst dich nicht selbst bannen"})
+		return
+	}
+
+	// Add to ban list
+	if err := h.userRepo.BanUser(user.SteamID, user.Username, req.Reason, claims.SteamID); err != nil {
+		log.Printf("Error banning user %d: %v", id, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to ban user"})
+		return
+	}
+
+	// Delete the user (cascade will handle votes and chat messages)
+	if err := h.userRepo.DeleteByID(id); err != nil {
+		log.Printf("Error deleting banned user %d: %v", id, err)
+		// Don't return error - user is already banned
+	}
+
+	log.Printf("Admin %s banned user %s (%s) - Reason: %s", claims.SteamID, user.Username, user.SteamID, req.Reason)
+
+	// Broadcast user banned to all connected clients
+	h.wsHub.BroadcastUserBanned(user.ID, user.Username)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Spieler wurde gebannt",
+		"username": user.Username,
+	})
+}
+
+// UnbanUser removes a user from the ban list
+// POST /api/v1/admin/users/unban/:steam_id
+func (h *SettingsHandler) UnbanUser(c *gin.Context) {
+	claims, _ := middleware.GetClaims(c)
+
+	steamID := c.Param("steam_id")
+
+	// Check if user is actually banned
+	banned, err := h.userRepo.GetBannedUser(steamID)
+	if err != nil {
+		log.Printf("Error getting banned user: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get ban info"})
+		return
+	}
+	if banned == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User is not banned"})
+		return
+	}
+
+	// Remove from ban list
+	if err := h.userRepo.UnbanUser(steamID); err != nil {
+		log.Printf("Error unbanning user %s: %v", steamID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unban user"})
+		return
+	}
+
+	log.Printf("Admin %s unbanned user %s (%s)", claims.SteamID, banned.Username, steamID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Spieler wurde entbannt",
+		"username": banned.Username,
 	})
 }

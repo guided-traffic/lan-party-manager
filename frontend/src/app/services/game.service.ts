@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { GamesResponse, Game } from '../models/game.model';
+import { GamesResponse, Game, SyncStatus } from '../models/game.model';
 
 @Injectable({
   providedIn: 'root'
@@ -25,6 +25,21 @@ export class GameService {
     return this.http.post<GamesResponse>(`${environment.apiUrl}/games/refresh`, {}).pipe(
       map(response => this.resolveImageUrls(response))
     );
+  }
+
+  /**
+   * Starts a background sync for game data
+   * Progress updates are sent via WebSocket
+   */
+  startBackgroundSync(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${environment.apiUrl}/games/sync`, {});
+  }
+
+  /**
+   * Gets the current sync status
+   */
+  getSyncStatus(): Observable<SyncStatus> {
+    return this.http.get<SyncStatus>(`${environment.apiUrl}/games/sync/status`);
   }
 
   /**

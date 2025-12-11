@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/guided-traffic/lan-party-manager/backend/database"
+	"github.com/guided-traffic/rate-your-mate/backend/database"
 )
 
 // GameCache represents a cached game entry in the database

@@ -2,7 +2,7 @@ import { Component, OnInit, signal, inject, ViewChild, ElementRef, AfterViewChec
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { SettingsService } from '../../services/settings.service';
+import { SettingsService, AdminUserInfo, BannedUser } from '../../services/settings.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { GameService } from '../../services/game.service';
@@ -227,6 +227,106 @@ import { GameService } from '../../services/game.service';
                   }
                 </button>
               </div>
+            </div>
+
+            <!-- Player Management Section -->
+            <div class="player-management-card">
+              <h3>👥 Spielerverwaltung</h3>
+              <p class="action-description">
+                Alle angemeldeten Spieler verwalten. Kicken löscht alle Daten, Bannen verhindert zusätzlich die Wiederkehr.
+              </p>
+
+              @if (loadingUsers()) {
+                <div class="loading-inline">
+                  <div class="spinner"></div>
+                  <span>Lade Spieler...</span>
+                </div>
+              } @else if (userList().length === 0) {
+                <p class="no-users">Keine Spieler angemeldet.</p>
+              } @else {
+                <div class="user-list">
+                  @for (user of userList(); track user.id) {
+                    <div class="user-item" [class.confirming]="confirmingAction()?.userId === user.id">
+                      <div class="user-info">
+                        <img [src]="user.avatar_small || 'assets/default-avatar.png'" [alt]="user.username" class="user-avatar" />
+                        <div class="user-details">
+                          <span class="user-name">{{ user.username }}</span>
+                          <span class="user-steam-id">{{ user.steam_id }}</span>
+                        </div>
+                      </div>
+                      <div class="user-actions">
+                        @if (confirmingAction()?.userId === user.id) {
+                          <div class="confirm-inline">
+                            <span class="confirm-text">
+                              {{ confirmingAction()?.action === 'kick' ? 'Kicken?' : 'Bannen?' }}
+                            </span>
+                            <button (click)="cancelUserAction()" class="cancel-sm-btn">✖️</button>
+                            <button
+                              (click)="executeUserAction()"
+                              [disabled]="executingAction()"
+                              class="confirm-sm-btn"
+                              [class.ban]="confirmingAction()?.action === 'ban'"
+                            >
+                              @if (executingAction()) {
+                                <span class="btn-spinner-sm"></span>
+                              } @else {
+                                ✓
+                              }
+                            </button>
+                          </div>
+                        } @else {
+                          <button
+                            (click)="startKickUser(user)"
+                            [disabled]="executingAction()"
+                            class="kick-btn"
+                            title="Kicken (kann sich wieder anmelden)"
+                          >
+                            👢
+                          </button>
+                          @if (!isCurrentUser(user)) {
+                            <button
+                              (click)="startBanUser(user)"
+                              [disabled]="executingAction()"
+                              class="ban-btn"
+                              title="Bannen (kann sich nicht wieder anmelden)"
+                            >
+                              🚫
+                            </button>
+                          }
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Banned Users Section -->
+              @if (bannedUsers().length > 0) {
+                <div class="banned-section">
+                  <h4>🚫 Gebannte Spieler</h4>
+                  <div class="banned-list">
+                    @for (banned of bannedUsers(); track banned.id) {
+                      <div class="banned-item">
+                        <div class="banned-info">
+                          <span class="banned-name">{{ banned.username }}</span>
+                          <span class="banned-steam-id">{{ banned.steam_id }}</span>
+                          @if (banned.reason) {
+                            <span class="banned-reason">Grund: {{ banned.reason }}</span>
+                          }
+                        </div>
+                        <button
+                          (click)="unbanUser(banned)"
+                          [disabled]="executingAction()"
+                          class="unban-btn"
+                          title="Entbannen"
+                        >
+                          ✅ Entbannen
+                        </button>
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
             </div>
 
             <div class="danger-zone-card">
@@ -993,6 +1093,256 @@ import { GameService } from '../../services/game.service';
       }
     }
 
+    /* Player Management Styles */
+    .player-management-card {
+      background: $bg-card;
+      border: 1px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 24px;
+      margin-bottom: 24px;
+
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 8px;
+      }
+
+      h4 {
+        font-size: 16px;
+        font-weight: 600;
+        color: $text-primary;
+        margin: 24px 0 12px 0;
+      }
+    }
+
+    .user-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: $bg-tertiary;
+      border-radius: $radius-md;
+      transition: all $transition-fast;
+
+      &.confirming {
+        background: rgba($accent-warning, 0.1);
+        border: 1px solid rgba($accent-warning, 0.3);
+      }
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .user-details {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name {
+      font-weight: 600;
+      color: $text-primary;
+      font-size: 14px;
+    }
+
+    .user-steam-id {
+      font-size: 12px;
+      color: $text-muted;
+      font-family: monospace;
+    }
+
+    .user-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .kick-btn, .ban-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .kick-btn {
+      background: rgba($accent-warning, 0.2);
+      color: $accent-warning;
+
+      &:hover:not(:disabled) {
+        background: rgba($accent-warning, 0.3);
+      }
+    }
+
+    .ban-btn {
+      background: rgba($accent-error, 0.2);
+      color: $accent-error;
+
+      &:hover:not(:disabled) {
+        background: rgba($accent-error, 0.3);
+      }
+    }
+
+    .confirm-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .confirm-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: $accent-warning;
+    }
+
+    .cancel-sm-btn, .confirm-sm-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all $transition-fast;
+    }
+
+    .cancel-sm-btn {
+      background: $bg-tertiary;
+      color: $text-secondary;
+
+      &:hover {
+        background: $bg-hover;
+      }
+    }
+
+    .confirm-sm-btn {
+      background: $accent-warning;
+      color: white;
+
+      &.ban {
+        background: $accent-error;
+      }
+
+      &:hover:not(:disabled) {
+        opacity: 0.9;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+      }
+    }
+
+    .btn-spinner-sm {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(white, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .banned-section {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid $border-color;
+    }
+
+    .banned-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .banned-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: rgba($accent-error, 0.1);
+      border: 1px solid rgba($accent-error, 0.2);
+      border-radius: $radius-md;
+    }
+
+    .banned-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .banned-name {
+      font-weight: 600;
+      color: $text-primary;
+      font-size: 14px;
+    }
+
+    .banned-steam-id {
+      font-size: 12px;
+      color: $text-muted;
+      font-family: monospace;
+    }
+
+    .banned-reason {
+      font-size: 12px;
+      color: $text-secondary;
+      font-style: italic;
+    }
+
+    .unban-btn {
+      padding: 8px 16px;
+      background: rgba($accent-success, 0.2);
+      color: $accent-success;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        background: rgba($accent-success, 0.3);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .no-users {
+      text-align: center;
+      color: $text-secondary;
+      padding: 24px;
+    }
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
@@ -1024,6 +1374,17 @@ export class AdminComponent implements OnInit, AfterViewChecked {
   invalidatingCache = signal(false);
   deletingVotes = signal(false);
   confirmingDeleteVotes = signal(false);
+
+  // Player management
+  allUsers = signal<AdminUserInfo[]>([]);
+  bannedUsers = signal<BannedUser[]>([]);
+  loadingUsers = signal(false);
+  loadingBannedUsers = signal(false);
+  confirmingAction = signal<{ userId: number; username: string; action: 'kick' | 'ban' } | null>(null);
+  executingAction = signal(false);
+
+  // Computed signal for template
+  userList = this.allUsers;
 
   // Form values
   creditIntervalMinutes = 10;
@@ -1119,6 +1480,10 @@ export class AdminComponent implements OnInit, AfterViewChecked {
         this.originalCreditIntervalMinutes = settings.credit_interval_minutes;
         this.originalCreditMax = settings.credit_max;
         this.loading.set(false);
+
+        // Load player management data
+        this.loadAllUsers();
+        this.loadBannedUsers();
       },
       error: (err) => {
         console.error('Failed to load settings:', err);
@@ -1254,5 +1619,121 @@ export class AdminComponent implements OnInit, AfterViewChecked {
         this.notifications.error('❌ Fehler', 'Votes konnten nicht gelöscht werden');
       }
     });
+  }
+
+  // Player management methods
+  loadAllUsers(): void {
+    this.loadingUsers.set(true);
+    this.settingsService.getAllUsers().subscribe({
+      next: (response) => {
+        this.allUsers.set(response.users);
+        this.loadingUsers.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load users:', err);
+        this.loadingUsers.set(false);
+        this.notifications.error('❌ Fehler', 'Spieler konnten nicht geladen werden');
+      }
+    });
+  }
+
+  loadBannedUsers(): void {
+    this.loadingBannedUsers.set(true);
+    this.settingsService.getBannedUsers().subscribe({
+      next: (response) => {
+        this.bannedUsers.set(response.banned_users || []);
+        this.loadingBannedUsers.set(false);
+      },
+      error: (err) => {
+        console.error('Failed to load banned users:', err);
+        this.loadingBannedUsers.set(false);
+        this.notifications.error('❌ Fehler', 'Gebannte Spieler konnten nicht geladen werden');
+      }
+    });
+  }
+
+  startKickUser(user: AdminUserInfo): void {
+    this.confirmingAction.set({ userId: user.id, username: user.username, action: 'kick' });
+  }
+
+  startBanUser(user: AdminUserInfo): void {
+    this.confirmingAction.set({ userId: user.id, username: user.username, action: 'ban' });
+  }
+
+  cancelUserAction(): void {
+    this.confirmingAction.set(null);
+  }
+
+  executeUserAction(): void {
+    const action = this.confirmingAction();
+    if (!action) return;
+
+    const currentUser = this.authService.user();
+
+    // Admins können sich nicht selbst bannen
+    if (action.action === 'ban' && currentUser && currentUser.id === action.userId) {
+      this.notifications.error('❌ Nicht erlaubt', 'Du kannst dich nicht selbst bannen');
+      this.confirmingAction.set(null);
+      return;
+    }
+
+    this.executingAction.set(true);
+
+    if (action.action === 'kick') {
+      this.settingsService.kickUser(action.userId, 'Kicked by Admin').subscribe({
+        next: () => {
+          this.executingAction.set(false);
+          this.confirmingAction.set(null);
+          this.notifications.success('👢 Spieler gekickt', `${action.username} wurde gekickt`);
+          this.loadAllUsers();
+
+          // If admin kicked themselves, redirect to login
+          if (currentUser && currentUser.id === action.userId) {
+            this.authService.logout();
+          }
+        },
+        error: (err) => {
+          console.error('Failed to kick user:', err);
+          this.executingAction.set(false);
+          this.notifications.error('❌ Fehler', 'Spieler konnte nicht gekickt werden');
+        }
+      });
+    } else {
+      this.settingsService.banUser(action.userId, 'Banned by Admin').subscribe({
+        next: () => {
+          this.executingAction.set(false);
+          this.confirmingAction.set(null);
+          this.notifications.success('🔨 Spieler gebannt', `${action.username} wurde gebannt`);
+          this.loadAllUsers();
+          this.loadBannedUsers();
+        },
+        error: (err) => {
+          console.error('Failed to ban user:', err);
+          this.executingAction.set(false);
+          this.notifications.error('❌ Fehler', 'Spieler konnte nicht gebannt werden');
+        }
+      });
+    }
+  }
+
+  unbanUser(banned: BannedUser): void {
+    this.executingAction.set(true);
+    this.settingsService.unbanUser(banned.steam_id).subscribe({
+      next: () => {
+        this.executingAction.set(false);
+        this.notifications.success('✅ Spieler entbannt', `${banned.username} wurde entbannt`);
+        this.loadBannedUsers();
+      },
+      error: (err) => {
+        console.error('Failed to unban user:', err);
+        this.executingAction.set(false);
+        this.notifications.error('❌ Fehler', 'Spieler konnte nicht entbannt werden');
+      }
+    });
+  }
+
+  isCurrentUser(user: AdminUserInfo): boolean {
+    const currentUser = this.authService.user();
+    return currentUser !== null && currentUser.id === user.id;
   }
 }

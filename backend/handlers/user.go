@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/guided-traffic/lan-party-manager/backend/middleware"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/middleware"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
 )
 
 // UserHandler handles user-related endpoints

@@ -30,6 +30,14 @@ const (
 	MessageTypeChatMessage MessageType = "chat_message"
 	// MessageTypeNewKing is sent when the king changes
 	MessageTypeNewKing MessageType = "new_king"
+	// MessageTypeGamesSyncProgress is sent during background game library sync
+	MessageTypeGamesSyncProgress MessageType = "games_sync_progress"
+	// MessageTypeGamesSyncComplete is sent when game sync is finished
+	MessageTypeGamesSyncComplete MessageType = "games_sync_complete"
+	// MessageTypeUserKicked is sent when a user is kicked
+	MessageTypeUserKicked MessageType = "user_kicked"
+	// MessageTypeUserBanned is sent when a user is banned
+	MessageTypeUserBanned MessageType = "user_banned"
 	// MessageTypeError is sent when an error occurs
 	MessageTypeError MessageType = "error"
 )
@@ -341,4 +349,95 @@ func (h *Hub) BroadcastNewKing(userID uint64, username string, avatar string) {
 
 	h.broadcast <- data
 	log.Printf("WebSocket: Broadcasted new king notification for user %s", username)
+}
+
+// GamesSyncProgressPayload contains progress info for game library sync
+type GamesSyncProgressPayload struct {
+	Phase         string `json:"phase"`          // "fetching_users", "fetching_categories", "complete"
+	CurrentGame   string `json:"current_game"`   // Name of current game being processed
+	ProcessedCount int   `json:"processed_count"` // Number of games processed so far
+	TotalCount    int    `json:"total_count"`    // Total games to process
+	Percentage    int    `json:"percentage"`     // 0-100
+}
+
+// BroadcastGamesSyncProgress notifies all clients about game sync progress
+func (h *Hub) BroadcastGamesSyncProgress(payload *GamesSyncProgressPayload) {
+	msg := Message{
+		Type:    MessageTypeGamesSyncProgress,
+		Payload: payload,
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal games sync progress message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+}
+
+// BroadcastGamesSyncComplete notifies all clients that game sync is complete
+func (h *Hub) BroadcastGamesSyncComplete(totalGames int) {
+	msg := Message{
+		Type: MessageTypeGamesSyncComplete,
+		Payload: map[string]interface{}{
+			"message":     "Spielebibliothek aktualisiert",
+			"total_games": totalGames,
+		},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal games sync complete message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted games sync complete with %d games", totalGames)
+}
+
+// UserActionPayload contains info about a user kick/ban
+type UserActionPayload struct {
+	UserID   uint64 `json:"user_id"`
+	Username string `json:"username"`
+}
+
+// BroadcastUserKicked notifies all clients that a user was kicked
+func (h *Hub) BroadcastUserKicked(userID uint64, username string) {
+	msg := Message{
+		Type: MessageTypeUserKicked,
+		Payload: UserActionPayload{
+			UserID:   userID,
+			Username: username,
+		},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal user kicked message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted user kicked notification for %s", username)
+}
+
+// BroadcastUserBanned notifies all clients that a user was banned
+func (h *Hub) BroadcastUserBanned(userID uint64, username string) {
+	msg := Message{
+		Type: MessageTypeUserBanned,
+		Payload: UserActionPayload{
+			UserID:   userID,
+			Username: username,
+		},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal user banned message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted user banned notification for %s", username)
 }

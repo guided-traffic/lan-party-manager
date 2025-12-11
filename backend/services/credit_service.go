@@ -3,9 +3,9 @@ package services
 import (
 	"time"
 
-	"github.com/guided-traffic/lan-party-manager/backend/config"
-	"github.com/guided-traffic/lan-party-manager/backend/models"
-	"github.com/guided-traffic/lan-party-manager/backend/repository"
+	"github.com/guided-traffic/rate-your-mate/backend/config"
+	"github.com/guided-traffic/rate-your-mate/backend/models"
+	"github.com/guided-traffic/rate-your-mate/backend/repository"
 )
 
 // CreditService handles credit calculation and management
