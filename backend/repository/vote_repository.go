@@ -328,3 +328,23 @@ func (r *VoteRepository) GetChampions() (*ChampionsResult, error) {
 
 	return result, nil
 }
+
+// DeleteAll deletes all votes from the database (admin only)
+func (r *VoteRepository) DeleteAll() (int64, error) {
+	var rowsAffected int64
+	err := database.WithRetry(func() error {
+		result, err := database.DB.Exec(`DELETE FROM votes`)
+		if err != nil {
+			return fmt.Errorf("failed to delete all votes: %w", err)
+		}
+
+		rowsAffected, err = result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to get rows affected: %w", err)
+		}
+
+		return nil
+	})
+
+	return rowsAffected, err
+}

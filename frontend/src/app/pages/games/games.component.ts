@@ -18,18 +18,6 @@ import { User } from '../../models/user.model';
           Multiplayer Games
         </h1>
         <p class="subtitle">Spiele die von LAN-Party Teilnehmern besessen werden</p>
-        <div class="header-buttons">
-          <button class="refresh-btn" (click)="refreshGames()" [disabled]="loading()">
-            <span class="refresh-icon" [class.spinning]="loading()">🔄</span>
-            Aktualisieren
-          </button>
-          @if (isAdmin()) {
-            <button class="refresh-btn admin-btn" (click)="invalidateCache()" [disabled]="loading() || invalidating()">
-              <span class="refresh-icon" [class.spinning]="invalidating()">☁️</span>
-              Update von Steam
-            </button>
-          }
-        </div>
       </div>
 
       @if (loading()) {

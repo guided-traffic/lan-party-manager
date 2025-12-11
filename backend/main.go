@@ -84,7 +84,7 @@ func main() {
 	achievementHandler := handlers.NewAchievementHandler()
 	voteHandler := handlers.NewVoteHandler(voteRepo, userRepo, creditService, wsHub, cfg)
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
-	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo)
+	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo, voteRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
 	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, cfg)
 
@@ -169,10 +169,13 @@ func main() {
 			admin := protected.Group("/admin")
 			admin.Use(settingsHandler.AdminMiddleware())
 			{
+				admin.GET("/password-required", settingsHandler.CheckAdminPasswordRequired)
+				admin.POST("/verify-password", settingsHandler.VerifyAdminPassword)
 				admin.GET("/settings", settingsHandler.GetSettings)
 				admin.PUT("/settings", settingsHandler.UpdateSettings)
 				admin.POST("/credits/reset", settingsHandler.ResetAllCredits)
 				admin.POST("/credits/give", settingsHandler.GiveEveryoneCredit)
+				admin.POST("/votes/delete-all", settingsHandler.DeleteAllVotes)
 				admin.POST("/games/invalidate-cache", gameHandler.InvalidateDBCache)
 			}
 		}

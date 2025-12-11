@@ -1,6 +1,6 @@
 import { Component, inject, OnInit, OnDestroy, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { NotificationService } from '../../services/notification.service';
@@ -88,7 +88,7 @@ import { Subscription, interval } from 'rxjs';
                     <span>🔗</span> Steam Profile
                   </a>
                   @if (isAdmin()) {
-                    <a routerLink="/admin" class="dropdown-item" (click)="closeMenu()">
+                    <a routerLink="/admin" class="dropdown-item" (click)="navigateToAdmin($event)">
                       <span>⚙️</span> Admin
                     </a>
                   }
@@ -423,6 +423,7 @@ import { Subscription, interval } from 'rxjs';
 export class HeaderComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   ws = inject(WebSocketService);
+  private router = inject(Router);
   private notifications = inject(NotificationService);
   private settingsService = inject(SettingsService);
   private soundService = inject(SoundService);
@@ -605,6 +606,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
 
   closeMenu(): void {
     this.menuOpen = false;
+  }
+
+  navigateToAdmin(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.menuOpen = false;
+    this.router.navigate(['/admin']);
   }
 
   logout(): void {

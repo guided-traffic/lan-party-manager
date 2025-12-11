@@ -17,14 +17,16 @@ type SettingsHandler struct {
 	cfg      *config.Config
 	wsHub    *websocket.Hub
 	userRepo *repository.UserRepository
+	voteRepo *repository.VoteRepository
 }
 
 // NewSettingsHandler creates a new settings handler
-func NewSettingsHandler(cfg *config.Config, wsHub *websocket.Hub, userRepo *repository.UserRepository) *SettingsHandler {
+func NewSettingsHandler(cfg *config.Config, wsHub *websocket.Hub, userRepo *repository.UserRepository, voteRepo *repository.VoteRepository) *SettingsHandler {
 	return &SettingsHandler{
 		cfg:      cfg,
 		wsHub:    wsHub,
 		userRepo: userRepo,
+		voteRepo: voteRepo,
 	}
 }
 
@@ -228,4 +230,82 @@ func (h *SettingsHandler) AdminMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// VerifyAdminPasswordRequest represents the request body for POST /admin/verify-password
+type VerifyAdminPasswordRequest struct {
+	Password string `json:"password" binding:"required"`
+}
+
+// VerifyAdminPassword checks if the provided password matches the admin password
+// POST /api/v1/admin/verify-password
+func (h *SettingsHandler) VerifyAdminPassword(c *gin.Context) {
+	// If no admin password is configured, always allow access
+	if h.cfg.AdminPassword == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"valid":             true,
+			"password_required": false,
+		})
+		return
+	}
+
+	var req VerifyAdminPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Password is required",
+		})
+		return
+	}
+
+	if req.Password == h.cfg.AdminPassword {
+		log.Printf("Admin password verified successfully")
+		c.JSON(http.StatusOK, gin.H{
+			"valid":             true,
+			"password_required": true,
+		})
+	} else {
+		log.Printf("Invalid admin password attempt")
+		c.JSON(http.StatusForbidden, gin.H{
+			"valid":             false,
+			"password_required": true,
+			"error":             "Invalid password",
+		})
+	}
+}
+
+// CheckAdminPasswordRequired checks if an admin password is configured
+// GET /api/v1/admin/password-required
+func (h *SettingsHandler) CheckAdminPasswordRequired(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"password_required": h.cfg.AdminPassword != "",
+	})
+}
+
+// DeleteAllVotesResponse represents the response for POST /admin/votes/delete-all
+type DeleteAllVotesResponse struct {
+	Message       string `json:"message"`
+	VotesDeleted  int64  `json:"votes_deleted"`
+}
+
+// DeleteAllVotes deletes all votes from the database
+// POST /api/v1/admin/votes/delete-all
+func (h *SettingsHandler) DeleteAllVotes(c *gin.Context) {
+	votesDeleted, err := h.voteRepo.DeleteAll()
+	if err != nil {
+		log.Printf("Error deleting all votes: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to delete votes",
+		})
+		return
+	}
+
+	log.Printf("Admin deleted all votes - %d votes deleted", votesDeleted)
+
+	// Broadcast votes reset to all connected clients
+	h.wsHub.BroadcastVotesReset()
+
+	c.JSON(http.StatusOK, DeleteAllVotesResponse{
+		Message:      "Alle Votes wurden gelöscht",
+		VotesDeleted: votesDeleted,
+	})
 }

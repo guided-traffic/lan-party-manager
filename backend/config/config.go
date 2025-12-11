@@ -52,6 +52,7 @@ type Config struct {
 
 	// Admin
 	AdminSteamIDs []string
+	AdminPassword string // Optional password for additional admin panel security
 
 	// Games
 	PinnedGameIDs []int // App IDs of pinned/featured games
@@ -99,6 +100,7 @@ func Load() *Config {
 
 		// Admin
 		AdminSteamIDs: getEnvAsStringSlice("ADMIN_STEAM_IDS", []string{}),
+		AdminPassword: getEnv("ADMIN_PASSWORD", ""),
 		PinnedGameIDs: getEnvAsIntSlice("PINNED_GAME_IDS", []int{}),
 	}
 

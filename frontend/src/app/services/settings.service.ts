@@ -8,6 +8,16 @@ export interface VotingStatusResponse {
   voting_paused: boolean;
 }
 
+export interface AdminPasswordRequiredResponse {
+  password_required: boolean;
+}
+
+export interface VerifyAdminPasswordResponse {
+  valid: boolean;
+  password_required: boolean;
+  error?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -36,6 +46,16 @@ export class SettingsService {
     });
   }
 
+  // Check if admin password is required
+  checkAdminPasswordRequired(): Observable<AdminPasswordRequiredResponse> {
+    return this.http.get<AdminPasswordRequiredResponse>(`${environment.apiUrl}/admin/password-required`);
+  }
+
+  // Verify admin password
+  verifyAdminPassword(password: string): Observable<VerifyAdminPasswordResponse> {
+    return this.http.post<VerifyAdminPasswordResponse>(`${environment.apiUrl}/admin/verify-password`, { password });
+  }
+
   getSettings(): Observable<Settings> {
     return this.http.get<Settings>(`${environment.apiUrl}/admin/settings`).pipe(
       tap(settings => {
@@ -60,6 +80,10 @@ export class SettingsService {
 
   giveEveryoneCredit(): Observable<CreditActionResponse> {
     return this.http.post<CreditActionResponse>(`${environment.apiUrl}/admin/credits/give`, {});
+  }
+
+  deleteAllVotes(): Observable<{ message: string; votes_deleted: number }> {
+    return this.http.post<{ message: string; votes_deleted: number }>(`${environment.apiUrl}/admin/votes/delete-all`, {});
   }
 
   // Called by WebSocket service when settings are updated

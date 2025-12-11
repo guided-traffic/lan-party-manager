@@ -24,6 +24,8 @@ const (
 	MessageTypeCreditsReset MessageType = "credits_reset"
 	// MessageTypeCreditsGiven is sent when admin gives everyone a credit
 	MessageTypeCreditsGiven MessageType = "credits_given"
+	// MessageTypeVotesReset is sent when admin deletes all votes
+	MessageTypeVotesReset MessageType = "votes_reset"
 	// MessageTypeChatMessage is sent when a new chat message is posted
 	MessageTypeChatMessage MessageType = "chat_message"
 	// MessageTypeNewKing is sent when the king changes
@@ -277,6 +279,23 @@ func (h *Hub) BroadcastCreditsGiven() {
 
 	h.broadcast <- data
 	log.Printf("WebSocket: Broadcasted credits given to all clients")
+}
+
+// BroadcastVotesReset notifies all clients that all votes have been deleted
+func (h *Hub) BroadcastVotesReset() {
+	msg := Message{
+		Type:    MessageTypeVotesReset,
+		Payload: map[string]string{"message": "Alle Votes wurden gelöscht"},
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("WebSocket: Failed to marshal votes reset message: %v", err)
+		return
+	}
+
+	h.broadcast <- data
+	log.Printf("WebSocket: Broadcasted votes reset to all clients")
 }
 
 // BroadcastChatMessage sends a new chat message to all clients

@@ -1,10 +1,11 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { SettingsService } from '../../services/settings.service';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
+import { GameService } from '../../services/game.service';
 
 @Component({
   selector: 'app-admin',
@@ -13,154 +14,265 @@ import { NotificationService } from '../../services/notification.service';
   template: `
     <div class="admin-page">
       <div class="admin-container">
-        <div class="admin-header">
-          <h1>⚙️ Admin Panel</h1>
-          <p class="admin-subtitle">Einstellungen für das Credit System</p>
-        </div>
+        <!-- Password Gate -->
+        @if (!authenticated()) {
+          <div class="password-gate">
+            <div class="password-card">
+              <div class="password-header">
+                <span class="lock-icon">🔒</span>
+                <h2>Admin-Bereich</h2>
+                <p>Bitte gib das Admin-Passwort ein, um fortzufahren.</p>
+              </div>
 
-        @if (loading()) {
-          <div class="loading">
-            <div class="spinner"></div>
-            <span>Lade Einstellungen...</span>
-          </div>
-        } @else if (error()) {
-          <div class="error-message">
-            <span>❌</span>
-            <p>{{ error() }}</p>
-            <button (click)="loadSettings()" class="retry-btn">Erneut versuchen</button>
+              @if (checkingPassword()) {
+                <div class="loading-inline">
+                  <div class="spinner"></div>
+                  <span>Prüfe...</span>
+                </div>
+              } @else {
+                <form (ngSubmit)="submitPassword()" class="password-form">
+                  <div class="input-wrapper">
+                    <input
+                      #passwordField
+                      type="password"
+                      [(ngModel)]="passwordInput"
+                      name="password"
+                      placeholder="Admin-Passwort"
+                      class="password-input"
+                      [class.error]="passwordError()"
+                    />
+                    @if (passwordError()) {
+                      <span class="error-text">{{ passwordError() }}</span>
+                    }
+                  </div>
+                  <div class="password-actions">
+                    <button type="button" (click)="goBack()" class="back-btn">
+                      ← Zurück
+                    </button>
+                    <button type="submit" [disabled]="!passwordInput" class="submit-btn">
+                      🔓 Entsperren
+                    </button>
+                  </div>
+                </form>
+              }
+            </div>
           </div>
         } @else {
-          <div class="settings-card">
-            <div class="setting-group">
-              <label for="creditInterval">Credit Interval (Minuten)</label>
-              <p class="setting-description">
-                Wie viele Minuten zwischen dem Verdienen von Credits vergehen.
-              </p>
-              <div class="input-group">
-                <input
-                  type="number"
-                  id="creditInterval"
-                  [(ngModel)]="creditIntervalMinutes"
-                  min="1"
-                  max="60"
-                  class="setting-input"
-                />
-                <span class="input-suffix">min</span>
-              </div>
-            </div>
-
-            <div class="setting-group">
-              <label for="creditMax">Maximale Credits</label>
-              <p class="setting-description">
-                Die maximale Anzahl an Credits, die ein Spieler ansammeln kann.
-              </p>
-              <div class="input-group">
-                <input
-                  type="number"
-                  id="creditMax"
-                  [(ngModel)]="creditMax"
-                  min="1"
-                  max="100"
-                  class="setting-input"
-                />
-                <span class="input-suffix">Credits</span>
-              </div>
-            </div>
-
-            <div class="actions">
-              <button
-                (click)="saveSettings()"
-                [disabled]="saving() || !hasChanges()"
-                class="save-btn"
-              >
-                @if (saving()) {
-                  <span class="btn-spinner"></span>
-                  Speichern...
-                } @else {
-                  💾 Einstellungen speichern
-                }
-              </button>
-              <button
-                (click)="resetToOriginal()"
-                [disabled]="saving() || !hasChanges()"
-                class="reset-btn"
-              >
-                ↩️ Zurücksetzen
-              </button>
-            </div>
-
-            @if (hasChanges()) {
-              <div class="changes-notice">
-                <span>⚠️</span>
-                <span>Du hast ungespeicherte Änderungen.</span>
-              </div>
-            }
+          <!-- Admin Panel Content -->
+          <div class="admin-header">
+            <h1>⚙️ Admin Panel</h1>
+            <p class="admin-subtitle">Einstellungen für das Credit System</p>
           </div>
 
-          <div class="info-card">
-            <h3>ℹ️ Hinweis</h3>
-            <p>
-              Änderungen werden <strong>sofort live</strong> an alle verbundenen Spieler übertragen.
-              Die Credits-Anzeige aller Spieler wird automatisch aktualisiert.
-            </p>
-          </div>
-
-          <div class="voting-control-card" [class.paused]="votingPaused()">
-            <div class="voting-status">
-              <span class="status-icon">{{ votingPaused() ? '⏸️' : '▶️' }}</span>
-              <div class="status-text">
-                <h3>Voting Status</h3>
-                <p>{{ votingPaused() ? 'Voting ist pausiert - niemand kann bewerten' : 'Voting ist aktiv' }}</p>
-              </div>
+          @if (loading()) {
+            <div class="loading">
+              <div class="spinner"></div>
+              <span>Lade Einstellungen...</span>
             </div>
-            <button
-              (click)="toggleVotingPause()"
-              [disabled]="togglingPause()"
-              class="toggle-pause-btn"
-              [class.paused]="votingPaused()"
-            >
-              @if (togglingPause()) {
-                <span class="btn-spinner"></span>
-              } @else if (votingPaused()) {
-                ▶️ Voting fortsetzen
-              } @else {
-                ⏸️ Voting pausieren
+          } @else if (error()) {
+            <div class="error-message">
+              <span>❌</span>
+              <p>{{ error() }}</p>
+              <button (click)="loadSettings()" class="retry-btn">Erneut versuchen</button>
+            </div>
+          } @else {
+            <div class="settings-card">
+              <div class="setting-group">
+                <label for="creditInterval">Credit Interval (Minuten)</label>
+                <p class="setting-description">
+                  Wie viele Minuten zwischen dem Verdienen von Credits vergehen.
+                </p>
+                <div class="input-group">
+                  <input
+                    type="number"
+                    id="creditInterval"
+                    [(ngModel)]="creditIntervalMinutes"
+                    min="1"
+                    max="60"
+                    class="setting-input"
+                  />
+                  <span class="input-suffix">min</span>
+                </div>
+              </div>
+
+              <div class="setting-group">
+                <label for="creditMax">Maximale Credits</label>
+                <p class="setting-description">
+                  Die maximale Anzahl an Credits, die ein Spieler ansammeln kann.
+                </p>
+                <div class="input-group">
+                  <input
+                    type="number"
+                    id="creditMax"
+                    [(ngModel)]="creditMax"
+                    min="1"
+                    max="100"
+                    class="setting-input"
+                  />
+                  <span class="input-suffix">Credits</span>
+                </div>
+              </div>
+
+              <div class="actions">
+                <button
+                  (click)="saveSettings()"
+                  [disabled]="saving() || !hasChanges()"
+                  class="save-btn"
+                >
+                  @if (saving()) {
+                    <span class="btn-spinner"></span>
+                    Speichern...
+                  } @else {
+                    💾 Einstellungen speichern
+                  }
+                </button>
+                <button
+                  (click)="resetToOriginal()"
+                  [disabled]="saving() || !hasChanges()"
+                  class="reset-btn"
+                >
+                  ↩️ Zurücksetzen
+                </button>
+              </div>
+
+              @if (hasChanges()) {
+                <div class="changes-notice">
+                  <span>⚠️</span>
+                  <span>Du hast ungespeicherte Änderungen.</span>
+                </div>
               }
-            </button>
-          </div>
+            </div>
 
-          <div class="credit-actions-card">
-            <h3>💰 Credit Aktionen</h3>
-            <p class="action-description">
-              Manuelle Credit-Verwaltung für alle Spieler gleichzeitig.
-            </p>
-            <div class="credit-actions">
+            <div class="info-card">
+              <h3>ℹ️ Hinweis</h3>
+              <p>
+                Änderungen werden <strong>sofort live</strong> an alle verbundenen Spieler übertragen.
+                Die Credits-Anzeige aller Spieler wird automatisch aktualisiert.
+              </p>
+            </div>
+
+            <div class="voting-control-card" [class.paused]="votingPaused()">
+              <div class="voting-status">
+                <span class="status-icon">{{ votingPaused() ? '⏸️' : '▶️' }}</span>
+                <div class="status-text">
+                  <h3>Voting Status</h3>
+                  <p>{{ votingPaused() ? 'Voting ist pausiert - niemand kann bewerten' : 'Voting ist aktiv' }}</p>
+                </div>
+              </div>
               <button
-                (click)="giveEveryoneCredit()"
-                [disabled]="givingCredits()"
-                class="give-credit-btn"
+                (click)="toggleVotingPause()"
+                [disabled]="togglingPause()"
+                class="toggle-pause-btn"
+                [class.paused]="votingPaused()"
               >
-                @if (givingCredits()) {
+                @if (togglingPause()) {
                   <span class="btn-spinner"></span>
-                  Wird verteilt...
+                } @else if (votingPaused()) {
+                  ▶️ Voting fortsetzen
                 } @else {
-                  🎁 Jedem 1 Credit geben
-                }
-              </button>
-              <button
-                (click)="resetAllCredits()"
-                [disabled]="resettingCredits()"
-                class="reset-credits-btn"
-              >
-                @if (resettingCredits()) {
-                  <span class="btn-spinner"></span>
-                  Wird zurückgesetzt...
-                } @else {
-                  🔄 Alle Credits auf 0 setzen
+                  ⏸️ Voting pausieren
                 }
               </button>
             </div>
-          </div>
+
+            <div class="credit-actions-card">
+              <h3>💰 Credit Aktionen</h3>
+              <p class="action-description">
+                Manuelle Credit-Verwaltung für alle Spieler gleichzeitig.
+              </p>
+              <div class="credit-actions">
+                <button
+                  (click)="giveEveryoneCredit()"
+                  [disabled]="givingCredits()"
+                  class="give-credit-btn"
+                >
+                  @if (givingCredits()) {
+                    <span class="btn-spinner"></span>
+                    Wird verteilt...
+                  } @else {
+                    🎁 Jedem 1 Credit geben
+                  }
+                </button>
+                <button
+                  (click)="resetAllCredits()"
+                  [disabled]="resettingCredits()"
+                  class="reset-credits-btn"
+                >
+                  @if (resettingCredits()) {
+                    <span class="btn-spinner"></span>
+                    Wird zurückgesetzt...
+                  } @else {
+                    🔄 Alle Credits auf 0 setzen
+                  }
+                </button>
+              </div>
+            </div>
+
+            <div class="steam-actions-card">
+              <h3>☁️ Steam Aktionen</h3>
+              <p class="action-description">
+                Spiele-Daten von Steam neu laden (Cache invalidieren).
+              </p>
+              <div class="steam-actions">
+                <button
+                  (click)="invalidateSteamCache()"
+                  [disabled]="invalidatingCache()"
+                  class="steam-update-btn"
+                >
+                  @if (invalidatingCache()) {
+                    <span class="btn-spinner"></span>
+                    Wird aktualisiert...
+                  } @else {
+                    ☁️ Update von Steam
+                  }
+                </button>
+              </div>
+            </div>
+
+            <div class="danger-zone-card">
+              <h3>⚠️ Gefahrenzone</h3>
+              <p class="action-description">
+                Vorsicht! Diese Aktionen können nicht rückgängig gemacht werden.
+              </p>
+              <div class="danger-actions">
+                @if (!confirmingDeleteVotes()) {
+                  <button
+                    (click)="startDeleteVotesConfirmation()"
+                    [disabled]="deletingVotes()"
+                    class="danger-btn"
+                  >
+                    🗑️ Alle Votes löschen
+                  </button>
+                } @else {
+                  <div class="confirm-delete-container">
+                    <p class="confirm-warning">
+                      ⚠️ Bist du sicher? Alle Votes und das Leaderboard werden gelöscht!
+                    </p>
+                    <div class="confirm-actions">
+                      <button
+                        (click)="cancelDeleteVotes()"
+                        class="cancel-btn"
+                      >
+                        ✖️ Abbrechen
+                      </button>
+                      <button
+                        (click)="confirmDeleteAllVotes()"
+                        [disabled]="deletingVotes()"
+                        class="confirm-danger-btn"
+                      >
+                        @if (deletingVotes()) {
+                          <span class="btn-spinner"></span>
+                          Wird gelöscht...
+                        } @else {
+                          ✓ Ja, alle Votes löschen
+                        }
+                      </button>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
         }
       </div>
     </div>
@@ -179,6 +291,148 @@ import { NotificationService } from '../../services/notification.service';
       margin: 0 auto;
     }
 
+    /* Password Gate Styles */
+    .password-gate {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 200px);
+    }
+
+    .password-card {
+      background: $bg-card;
+      border: 1px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .password-header {
+      margin-bottom: 32px;
+
+      .lock-icon {
+        font-size: 48px;
+        display: block;
+        margin-bottom: 16px;
+      }
+
+      h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: $text-primary;
+        margin-bottom: 8px;
+      }
+
+      p {
+        font-size: 14px;
+        color: $text-secondary;
+      }
+    }
+
+    .loading-inline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 24px;
+      color: $text-secondary;
+    }
+
+    .password-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .input-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .password-input {
+      width: 100%;
+      padding: 14px 18px;
+      background: $bg-tertiary;
+      border: 2px solid $border-color;
+      border-radius: $radius-md;
+      color: $text-primary;
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 2px;
+      transition: all $transition-fast;
+
+      &::placeholder {
+        letter-spacing: normal;
+        color: $text-muted;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: $accent-primary;
+        box-shadow: 0 0 0 3px rgba($accent-primary, 0.2);
+      }
+
+      &.error {
+        border-color: $accent-error;
+        box-shadow: 0 0 0 3px rgba($accent-error, 0.2);
+      }
+    }
+
+    .error-text {
+      color: $accent-error;
+      font-size: 13px;
+    }
+
+    .password-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .back-btn {
+      flex: 1;
+      padding: 14px 20px;
+      background: $bg-tertiary;
+      color: $text-secondary;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover {
+        background: $bg-hover;
+        color: $text-primary;
+      }
+    }
+
+    .submit-btn {
+      flex: 2;
+      padding: 14px 24px;
+      background: $gradient-primary;
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: $shadow-lg;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    /* Admin Panel Styles */
     .admin-header {
       text-align: center;
       margin-bottom: 32px;
@@ -416,6 +670,7 @@ import { NotificationService } from '../../services/notification.service';
       border: 1px solid $border-color;
       border-radius: $radius-lg;
       padding: 24px;
+      margin-bottom: 24px;
 
       h3 {
         font-size: 18px;
@@ -428,6 +683,175 @@ import { NotificationService } from '../../services/notification.service';
         font-size: 14px;
         color: $text-muted;
         margin-bottom: 20px;
+      }
+    }
+
+    .steam-actions-card {
+      background: $bg-card;
+      border: 1px solid $border-color;
+      border-radius: $radius-lg;
+      padding: 24px;
+
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: $text-primary;
+        margin-bottom: 8px;
+      }
+
+      .action-description {
+        font-size: 14px;
+        color: $text-muted;
+        margin-bottom: 20px;
+      }
+    }
+
+    .steam-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .steam-update-btn {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .danger-zone-card {
+      background: $bg-card;
+      border: 2px solid $accent-error;
+      border-radius: $radius-lg;
+      padding: 24px;
+      margin-top: 24px;
+
+      h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: $accent-error;
+        margin-bottom: 8px;
+      }
+
+      .action-description {
+        font-size: 14px;
+        color: $text-muted;
+        margin-bottom: 20px;
+      }
+    }
+
+    .danger-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .danger-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .confirm-delete-container {
+      background: rgba($accent-error, 0.1);
+      border: 1px solid rgba($accent-error, 0.3);
+      border-radius: $radius-md;
+      padding: 20px;
+    }
+
+    .confirm-warning {
+      color: $accent-error;
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .cancel-btn {
+      padding: 12px 24px;
+      background: $bg-tertiary;
+      color: $text-secondary;
+      border: 1px solid $border-color;
+      border-radius: $radius-md;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover {
+        background: $bg-hover;
+        color: $text-primary;
+      }
+    }
+
+    .confirm-danger-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      border: none;
+      border-radius: $radius-md;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      &:hover:not(:disabled) {
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
     }
 
@@ -574,11 +998,21 @@ import { NotificationService } from '../../services/notification.service';
     }
   `]
 })
-export class AdminComponent implements OnInit {
+export class AdminComponent implements OnInit, AfterViewChecked {
   private settingsService = inject(SettingsService);
   private authService = inject(AuthService);
   private notifications = inject(NotificationService);
   private router = inject(Router);
+  private gameService = inject(GameService);
+
+  @ViewChild('passwordField') passwordField?: ElementRef<HTMLInputElement>;
+  private shouldFocusPassword = false;
+
+  // Password gate
+  authenticated = signal(false);
+  checkingPassword = signal(false);
+  passwordError = signal<string | null>(null);
+  passwordInput = '';
 
   loading = signal(true);
   saving = signal(false);
@@ -587,6 +1021,9 @@ export class AdminComponent implements OnInit {
   givingCredits = signal(false);
   togglingPause = signal(false);
   votingPaused = signal(false);
+  invalidatingCache = signal(false);
+  deletingVotes = signal(false);
+  confirmingDeleteVotes = signal(false);
 
   // Form values
   creditIntervalMinutes = 10;
@@ -596,6 +1033,13 @@ export class AdminComponent implements OnInit {
   private originalCreditIntervalMinutes = 10;
   private originalCreditMax = 10;
 
+  ngAfterViewChecked(): void {
+    if (this.shouldFocusPassword && this.passwordField) {
+      this.passwordField.nativeElement.focus();
+      this.shouldFocusPassword = false;
+    }
+  }
+
   ngOnInit(): void {
     // Check if user is admin
     const user = this.authService.user();
@@ -604,7 +1048,63 @@ export class AdminComponent implements OnInit {
       return;
     }
 
-    this.loadSettings();
+    // Check if password is required
+    this.checkPasswordRequired();
+  }
+
+  checkPasswordRequired(): void {
+    this.checkingPassword.set(true);
+    this.settingsService.checkAdminPasswordRequired().subscribe({
+      next: (response) => {
+        this.checkingPassword.set(false);
+        if (!response.password_required) {
+          // No password required, directly authenticate
+          this.authenticated.set(true);
+          this.loadSettings();
+        } else {
+          // Password required, focus the input field
+          this.shouldFocusPassword = true;
+        }
+      },
+      error: (err) => {
+        console.error('Failed to check password requirement:', err);
+        this.checkingPassword.set(false);
+        // On error, assume password is required for security
+        this.shouldFocusPassword = true;
+      }
+    });
+  }
+
+  submitPassword(): void {
+    if (!this.passwordInput) return;
+
+    this.checkingPassword.set(true);
+    this.passwordError.set(null);
+
+    this.settingsService.verifyAdminPassword(this.passwordInput).subscribe({
+      next: (response) => {
+        this.checkingPassword.set(false);
+        if (response.valid) {
+          this.authenticated.set(true);
+          this.passwordInput = '';
+          this.loadSettings();
+        } else {
+          this.passwordError.set('Falsches Passwort');
+        }
+      },
+      error: (err) => {
+        this.checkingPassword.set(false);
+        if (err.status === 403) {
+          this.passwordError.set('Falsches Passwort');
+        } else {
+          this.passwordError.set('Fehler bei der Überprüfung');
+        }
+      }
+    });
+  }
+
+  goBack(): void {
+    this.router.navigate(['/timeline']);
   }
 
   loadSettings(): void {
@@ -711,6 +1211,47 @@ export class AdminComponent implements OnInit {
         console.error('Failed to toggle voting pause:', err);
         this.togglingPause.set(false);
         this.notifications.error('❌ Fehler', 'Status konnte nicht geändert werden');
+      }
+    });
+  }
+
+  invalidateSteamCache(): void {
+    this.invalidatingCache.set(true);
+
+    this.gameService.invalidateCache().subscribe({
+      next: () => {
+        this.invalidatingCache.set(false);
+        this.notifications.success('☁️ Steam Cache invalidiert', 'Spiele-Daten werden beim nächsten Laden neu von Steam abgerufen');
+      },
+      error: (err) => {
+        console.error('Failed to invalidate Steam cache:', err);
+        this.invalidatingCache.set(false);
+        this.notifications.error('❌ Fehler', 'Steam Cache konnte nicht invalidiert werden');
+      }
+    });
+  }
+
+  startDeleteVotesConfirmation(): void {
+    this.confirmingDeleteVotes.set(true);
+  }
+
+  cancelDeleteVotes(): void {
+    this.confirmingDeleteVotes.set(false);
+  }
+
+  confirmDeleteAllVotes(): void {
+    this.deletingVotes.set(true);
+
+    this.settingsService.deleteAllVotes().subscribe({
+      next: (response) => {
+        this.deletingVotes.set(false);
+        this.confirmingDeleteVotes.set(false);
+        this.notifications.success('🗑️ Votes gelöscht', `${response.votes_deleted} Votes wurden gelöscht`);
+      },
+      error: (err) => {
+        console.error('Failed to delete all votes:', err);
+        this.deletingVotes.set(false);
+        this.notifications.error('❌ Fehler', 'Votes konnten nicht gelöscht werden');
       }
     });
   }
