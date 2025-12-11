@@ -153,10 +153,11 @@ export class AuthService {
         console.error('[AuthService] loadCurrentUser - Error:', error.status, error.message);
         this.loading.set(false);
 
-        // Only clear token and redirect for authentication errors (401)
-        // The interceptor already handles 401, but we check here too for safety
-        if (error.status === 401) {
-          console.log('[AuthService] loadCurrentUser - 401, removing token');
+        // Clear token and redirect for authentication errors:
+        // - 401: Invalid/expired token
+        // - 404: User not found (e.g., DB was reset but client still has old token)
+        if (error.status === 401 || error.status === 404) {
+          console.log(`[AuthService] loadCurrentUser - ${error.status}, removing token and redirecting to login`);
           this.removeToken();
           this.currentUser.set(null);
           this.router.navigate(['/login']);

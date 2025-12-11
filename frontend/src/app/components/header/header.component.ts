@@ -27,13 +27,13 @@ import { Subscription, interval } from 'rxjs';
                 <span class="nav-icon">🎮</span>
                 Games
               </a>
-              <a routerLink="/leaderboard" routerLinkActive="active" class="nav-link">
-                <span class="nav-icon">🏆</span>
-                Leaderboard
-              </a>
               <a routerLink="/rate" routerLinkActive="active" class="nav-link">
                 <span class="nav-icon">⭐</span>
                 Rate Player
+              </a>
+              <a routerLink="/leaderboard" routerLinkActive="active" class="nav-link">
+                <span class="nav-icon">🏆</span>
+                Leaderboard
               </a>
               <a routerLink="/timeline" routerLinkActive="active" class="nav-link">
                 <span class="nav-icon">📜</span>

@@ -58,6 +58,17 @@ import { Achievement } from '../../models/achievement.model';
                 [style.background-image]="'url(' + (user.avatar_url || user.avatar_small || '/assets/default-avatar.png') + ')'"
                 (click)="selectUser(user)"
               >
+                <a
+                  class="add-friend-btn"
+                  [href]="user.profile_url"
+                  target="_blank"
+                  (click)="$event.stopPropagation()"
+                  title="Steam-Profil öffnen"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="steam-icon">
+                    <path d="M12 2a10 10 0 0 1 10 10 10 10 0 0 1-10 10c-4.6 0-8.45-3.08-9.64-7.27l3.83 1.58a2.84 2.84 0 0 0 2.78 2.27c1.56 0 2.83-1.27 2.83-2.83v-.13l3.4-2.43h.08c2.08 0 3.77-1.69 3.77-3.77s-1.69-3.77-3.77-3.77-3.77 1.69-3.77 3.77v.05l-2.37 3.46-.16-.01c-.53 0-1.02.15-1.44.41L2.1 10.68A10 10 0 0 1 12 2m0 18a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-7.89 6.78l1.85.76a2.83 2.83 0 0 1 3.4-.72l1.99-1.47c-.02-.12-.02-.24-.02-.35 0-1.39 1.13-2.52 2.52-2.52S16.37 7.61 16.37 9s-1.13 2.52-2.52 2.52h-.19l-1.4 2.03c.08.27.12.55.12.84 0 1.39-1.13 2.52-2.52 2.52-.35 0-.69-.07-1-.21l-.83-.34A8 8 0 0 0 12 20m3.85-11a1.26 1.26 0 0 0-1.26 1.26c0 .7.56 1.26 1.26 1.26.7 0 1.26-.56 1.26-1.26 0-.7-.56-1.26-1.26-1.26m-7.16 5.21.69.29c.28.11.58.13.87.05a1.28 1.28 0 0 0 .87-1.58 1.28 1.28 0 0 0-1.16-.88l-.72-.3a1.57 1.57 0 0 0-.55 2.42z"/>
+                  </svg>
+                </a>
                 <div class="player-name-overlay">
                   <span class="player-name">{{ user.username }}</span>
                 </div>
