@@ -143,9 +143,8 @@ func main() {
 		// Game images (public - allows caching by browsers/CDNs)
 		api.GET("/games/images/:filename", gameHandler.ServeGameImage)
 
-		// WebSocket endpoint (token passed as query param)
+		// WebSocket endpoint (token passed as query param, validates internally)
 		api.GET("/ws", wsHandler.HandleConnection)
-		api.GET("/ws/status", wsHandler.GetStatus)
 
 		// Protected routes
 		protected := api.Group("")
@@ -153,6 +152,9 @@ func main() {
 		{
 			// Auth
 			protected.GET("/auth/me", authHandler.Me)
+
+			// WebSocket status (requires authentication)
+			protected.GET("/ws/status", wsHandler.GetStatus)
 
 			// Users
 			protected.GET("/users", userHandler.GetAll)
