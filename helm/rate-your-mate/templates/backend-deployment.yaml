@@ -94,6 +94,14 @@ spec:
                   name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "rate-your-mate.fullname" .)) }}
                   key: JWT_SECRET
             {{- end }}
+            {{- if or .Values.secrets.existingSecret (and .Values.secrets.create .Values.secrets.adminPassword) }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "rate-your-mate.fullname" .)) }}
+                  key: ADMIN_PASSWORD
+                  optional: true
+            {{- end }}
             # Database configuration
             - name: DB_TYPE
               value: "{{ .Values.database.type }}"

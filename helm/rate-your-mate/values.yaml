@@ -123,6 +123,9 @@ secrets:
   # JWT Secret for token signing (required for authentication)
   # Generate with: openssl rand -base64 32
   jwtSecret: ""
+  # Optional: Admin password for additional admin panel security
+  # If set, admins must enter this password each time they open the admin panel
+  adminPassword: ""
 
 ingress:
   enabled: false
