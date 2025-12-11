@@ -99,6 +99,82 @@ func (r *GameCacheRepository) GetStaleGames(maxAge time.Duration) ([]GameCache, 
 	return games, nil
 }
 
+// GetGamesNeedingSync returns games that need to be synced:
+// - Never fetched (fetched_at is NULL or epoch)
+// - Stale (fetched_at older than maxAge)
+// - Failed fetches that are ready for retry (older than retryDelay)
+func (r *GameCacheRepository) GetGamesNeedingSync(maxAge, retryDelay time.Duration) ([]GameCache, error) {
+	staleCutoff := time.Now().Add(-maxAge)
+	retryCutoff := time.Now().Add(-retryDelay)
+
+	rows, err := database.DB.Query(`
+		SELECT app_id, name, categories, is_free, price_cents, original_cents, discount_percent, price_formatted, review_score, fetch_failed, fetched_at
+		FROM game_cache
+		WHERE
+			fetched_at < ?
+			OR (fetch_failed = 1 AND fetched_at < ?)
+		ORDER BY fetched_at ASC`, staleCutoff, retryCutoff)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get games needing sync: %w", err)
+	}
+	defer rows.Close()
+
+	var games []GameCache
+	for rows.Next() {
+		var game GameCache
+		err := rows.Scan(&game.AppID, &game.Name, &game.Categories, &game.IsFree, &game.PriceCents, &game.OriginalCents, &game.DiscountPercent, &game.PriceFormatted, &game.ReviewScore, &game.FetchFailed, &game.FetchedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan game cache row: %w", err)
+		}
+		games = append(games, game)
+	}
+
+	return games, nil
+}
+
+// InsertIfNotExists adds a game to the cache only if it doesn't already exist
+// This is used when a new user joins - we record their games without overwriting existing data
+func (r *GameCacheRepository) InsertIfNotExists(appID int, name string) error {
+	if database.IsSQLite() {
+		_, err := database.DB.Exec(`
+			INSERT OR IGNORE INTO game_cache (app_id, name, categories, review_score, fetched_at)
+			VALUES (?, ?, '[]', -1, '1970-01-01 00:00:00')`,
+			appID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert game if not exists: %w", err)
+		}
+	} else {
+		// MySQL/MariaDB - INSERT IGNORE
+		_, err := database.DB.Exec(`
+			INSERT IGNORE INTO game_cache (app_id, name, categories, review_score, fetched_at)
+			VALUES (?, ?, '[]', -1, '1970-01-01 00:00:00')`,
+			appID, name,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert game if not exists: %w", err)
+		}
+	}
+	return nil
+}
+
+// CountGamesNeedingSync returns the count of games that need to be synced
+func (r *GameCacheRepository) CountGamesNeedingSync(maxAge, retryDelay time.Duration) (int, error) {
+	staleCutoff := time.Now().Add(-maxAge)
+	retryCutoff := time.Now().Add(-retryDelay)
+
+	var count int
+	err := database.DB.QueryRow(`
+		SELECT COUNT(*) FROM game_cache
+		WHERE
+			fetched_at < ?
+			OR (fetch_failed = 1 AND fetched_at < ?)`, staleCutoff, retryCutoff).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count games needing sync: %w", err)
+	}
+	return count, nil
+}
+
 // GamePriceInfo contains price and review information for caching
 type GamePriceInfo struct {
 	IsFree          bool

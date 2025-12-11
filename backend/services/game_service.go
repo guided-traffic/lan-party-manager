@@ -43,12 +43,12 @@ type GameService struct {
 
 // syncProgress tracks background sync status
 type syncProgress struct {
-	mu         sync.RWMutex
-	isSyncing  bool
-	phase      string
-	current    string
-	processed  int
-	total      int
+	mu        sync.RWMutex
+	isSyncing bool
+	phase     string
+	current   string
+	processed int
+	total     int
 }
 
 // gamesCache caches the full response to avoid rebuilding it constantly
@@ -1058,14 +1058,93 @@ func (s *GameService) loadPinnedGamesFromCache(needsSync *bool) []models.Game {
 	return pinnedGames
 }
 
-// SyncGamesInBackground fetches missing game data in the background
-// and calls the progress callback to report status
-func (s *GameService) SyncGamesInBackground(progressCallback SyncProgressCallback) {
-	// Prevent concurrent syncs
+// SyncGames triggers a sync for all games that need updating
+// This can be called at any time - it checks the DB for games with stale/missing data
+func (s *GameService) SyncGames(progressCallback SyncProgressCallback) {
+	s.TriggerSyncIfNeeded(progressCallback)
+}
+
+// RegisterUserGames records a user's games in the cache and triggers sync if needed
+// This is called when a new user registers - their games are added to the DB
+// and a sync is triggered to fetch missing data
+func (s *GameService) RegisterUserGames(steamID string, progressCallback SyncProgressCallback) {
+	go func() {
+		log.Printf("GameService: Registering games for new user %s", steamID)
+
+		// Fetch new user's game library from Steam
+		userGames, err := s.fetchUserGames(steamID)
+		if err != nil {
+			log.Printf("GameService: Failed to fetch games for new user %s: %v", steamID, err)
+			return
+		}
+
+		if len(userGames) == 0 {
+			log.Printf("GameService: New user %s has no games", steamID)
+			return
+		}
+
+		log.Printf("GameService: New user %s has %d games, inserting into cache", steamID, len(userGames))
+
+		// Insert all games into cache (without overwriting existing data)
+		// Games that already exist will be skipped
+		newGames := 0
+		for _, g := range userGames {
+			err := s.gameCacheRepo.InsertIfNotExists(g.AppID, g.Name)
+			if err != nil {
+				log.Printf("GameService: Failed to insert game %d: %v", g.AppID, err)
+			} else {
+				newGames++
+			}
+		}
+
+		log.Printf("GameService: Inserted %d games for user %s", newGames, steamID)
+
+		// Invalidate response cache so new user's ownership is reflected
+		s.InvalidateCache()
+
+		// Now trigger a sync to fetch missing data
+		s.TriggerSyncIfNeeded(progressCallback)
+	}()
+}
+
+// TriggerSyncIfNeeded checks if there are games that need syncing and starts a sync
+func (s *GameService) TriggerSyncIfNeeded(progressCallback SyncProgressCallback) {
+	// Check if sync is already running
+	s.syncProgress.mu.RLock()
+	isSyncing := s.syncProgress.isSyncing
+	s.syncProgress.mu.RUnlock()
+
+	if isSyncing {
+		log.Println("GameService: Sync already in progress, skipping")
+		return
+	}
+
+	// Check if there are games needing sync
+	count, err := s.gameCacheRepo.CountGamesNeedingSync(gameCacheMaxAge, failedFetchRetryDelay)
+	if err != nil {
+		log.Printf("GameService: Failed to count games needing sync: %v", err)
+		return
+	}
+
+	if count == 0 {
+		log.Println("GameService: No games need syncing")
+		if progressCallback != nil {
+			progressCallback("complete", "", 0, 0)
+		}
+		return
+	}
+
+	log.Printf("GameService: %d games need syncing, starting sync", count)
+	s.runSync(progressCallback)
+}
+
+// runSync performs the actual sync work
+func (s *GameService) runSync(progressCallback SyncProgressCallback) {
+	// Set syncing state
 	s.syncProgress.mu.Lock()
 	if s.syncProgress.isSyncing {
 		s.syncProgress.mu.Unlock()
-		log.Println("GameService: Background sync already in progress")
+		log.Println("GameService: Sync already in progress, skipping")
 		return
 	}
 	s.syncProgress.isSyncing = true
@@ -1076,137 +1155,79 @@ func (s *GameService) SyncGamesInBackground(progressCallback SyncProgressCallbac
 			s.setSyncProgress(false, "", "", 0, 0)
 		}()
 
-		log.Println("GameService: Starting background sync")
+		log.Println("GameService: Starting sync")
 
-		// Get all registered users
-		users, err := s.userRepo.GetAll()
+		// Get all games that need syncing
+		gamesToSync, err := s.gameCacheRepo.GetGamesNeedingSync(gameCacheMaxAge, failedFetchRetryDelay)
 		if err != nil {
-			log.Printf("GameService: Background sync failed to get users: %v", err)
+			log.Printf("GameService: Failed to get games needing sync: %v", err)
 			return
 		}
 
-		if len(users) == 0 {
-			return
-		}
-
-		// Collect all games from all users
-		gameMap := make(map[int]*models.Game)
-		var mu sync.Mutex
-		var wg sync.WaitGroup
-
-		s.setSyncProgress(true, "fetching_users", "", 0, len(users))
-		if progressCallback != nil {
-			progressCallback("fetching_users", "", 0, len(users))
-		}
-
-		processedUsers := 0
-		for _, user := range users {
-			wg.Add(1)
-			go func(steamID string, username string) {
-				defer wg.Done()
-
-				games, err := s.fetchUserGames(steamID)
-				if err != nil {
-					log.Printf("Failed to fetch games for user %s: %v", steamID, err)
-					return
-				}
-
-				mu.Lock()
-				processedUsers++
-				for _, g := range games {
-					if existing, ok := gameMap[g.AppID]; ok {
-						existing.OwnerCount++
-						existing.Owners = append(existing.Owners, steamID)
-						if g.PlaytimeForever > existing.PlaytimeForever {
-							existing.PlaytimeForever = g.PlaytimeForever
-						}
-					} else {
-						game := &models.Game{
-							AppID:           g.AppID,
-							Name:            g.Name,
-							HeaderImageURL:  s.imageCacheService.GetLocalImageURL(g.AppID),
-							CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, g.AppID),
-							PlaytimeForever: g.PlaytimeForever,
-							OwnerCount:      1,
-							Owners:          []string{steamID},
-							Categories:      []string{},
-						}
-
-						cached, err := s.gameCacheRepo.GetByAppID(g.AppID)
-						if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
-							game.Categories = cached.GetCategories()
-							if cached.Name != "" {
-								game.Name = cached.Name
-							}
-							game.IsFree = cached.IsFree
-							game.PriceCents = cached.PriceCents
-							game.OriginalCents = cached.OriginalCents
-							game.DiscountPercent = cached.DiscountPercent
-							game.PriceFormatted = cached.PriceFormatted
-							game.ReviewScore = cached.ReviewScore
-						}
-
-						gameMap[g.AppID] = game
-					}
-				}
-				mu.Unlock()
-			}(user.SteamID, user.Username)
-		}
-
-		wg.Wait()
-
-		// Identify games that need their categories fetched
-		var gamesToFetch []*models.Game
-		for _, game := range gameMap {
-			if len(game.Categories) == 0 {
-				cached, err := s.gameCacheRepo.GetByAppID(game.AppID)
-				if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
-					if cached.FetchFailed && !cached.IsStale(failedFetchRetryDelay) {
-						continue
-					} else if !cached.FetchFailed {
-						game.Categories = cached.GetCategories()
-						continue
-					}
-				}
-				gamesToFetch = append(gamesToFetch, game)
-			}
-		}
-
-		// Sort by owner count to prioritize popular games
-		sort.Slice(gamesToFetch, func(i, j int) bool {
-			return gamesToFetch[i].OwnerCount > gamesToFetch[j].OwnerCount
-		})
-
-		// Fetch categories with progress reporting
-		totalToFetch := len(gamesToFetch)
-		if totalToFetch > 0 {
-			s.setSyncProgress(true, "fetching_categories", "", 0, totalToFetch)
+		if len(gamesToSync) == 0 {
+			log.Println("GameService: No games to sync")
 			if progressCallback != nil {
-				progressCallback("fetching_categories", "", 0, totalToFetch)
+				progressCallback("complete", "", 0, 0)
 			}
+			return
+		}
 
-			s.fetchGameCategoriesWithProgress(gamesToFetch, func(processed int, currentGame string) {
-				s.setSyncProgress(true, "fetching_categories", currentGame, processed, totalToFetch)
-				if progressCallback != nil {
-					progressCallback("fetching_categories", currentGame, processed, totalToFetch)
-				}
+		// Convert to models.Game for the fetch function
+		var games []*models.Game
+		for _, g := range gamesToSync {
+			games = append(games, &models.Game{
+				AppID: g.AppID,
+				Name:  g.Name,
 			})
 		}
 
+		totalToFetch := len(games)
+		log.Printf("GameService: Syncing %d games", totalToFetch)
+
+		s.setSyncProgress(true, "fetching_categories", "", 0, totalToFetch)
+		if progressCallback != nil {
+			progressCallback("fetching_categories", "", 0, totalToFetch)
+		}
+
+		// Fetch game data with progress reporting
+		s.fetchGameCategoriesWithProgress(games, func(processed int, currentGame string) {
+			s.setSyncProgress(true, "fetching_categories", currentGame, processed, totalToFetch)
+			if progressCallback != nil {
+				progressCallback("fetching_categories", currentGame, processed, totalToFetch)
+			}
+		})
+
+		// Invalidate response cache
+		s.InvalidateCache()
+
 		// Count multiplayer games
 		multiplayerCount := 0
-		for _, game := range gameMap {
+		for _, game := range games {
 			if game.HasMultiplayerCategory() {
 				multiplayerCount++
 			}
 		}
 
-		// Invalidate cache so next request gets fresh data
-		s.InvalidateCache()
+		log.Printf("GameService: Sync batch complete. Synced %d games (%d multiplayer)", totalToFetch, multiplayerCount)
 
-		log.Printf("GameService: Background sync complete. Found %d multiplayer games", multiplayerCount)
+		// Check if there are more games to sync (new users may have joined during sync)
+		remainingCount, err := s.gameCacheRepo.CountGamesNeedingSync(gameCacheMaxAge, failedFetchRetryDelay)
+		if err != nil {
+			log.Printf("GameService: Failed to count remaining games: %v", err)
+		} else if remainingCount > 0 {
+			log.Printf("GameService: %d more games need syncing, continuing...", remainingCount)
+			// Reset sync state and continue
+			s.syncProgress.mu.Lock()
+			s.syncProgress.isSyncing = false
+			s.syncProgress.mu.Unlock()
+			// Recursive call to sync remaining games
+			s.runSync(progressCallback)
+			return
+		}
+
+		log.Println("GameService: All games synced")
 		if progressCallback != nil {
-			progressCallback("complete", "", multiplayerCount, multiplayerCount)
+			progressCallback("complete", "", multiplayerCount, totalToFetch)
 		}
 	}()
 }

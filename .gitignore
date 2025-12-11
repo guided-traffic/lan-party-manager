@@ -28,3 +28,4 @@ frontend/.angular/
 helm/*/charts/
 *.tgz
 node_modules/
+backend/backend

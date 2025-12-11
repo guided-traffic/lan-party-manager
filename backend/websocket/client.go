@@ -80,7 +80,6 @@ func (c *Client) writePump() {
 				log.Printf("WebSocket: Failed to write message to client %d: %v", c.userID, err)
 				return
 			}
-			log.Printf("WebSocket: Sent message to client %d (%s)", c.userID, c.username)
 
 			// Send any queued messages as separate frames
 			n := len(c.send)

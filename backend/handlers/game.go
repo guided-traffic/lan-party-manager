@@ -74,8 +74,8 @@ func (h *GameHandler) StartBackgroundSync(c *gin.Context) {
 		return
 	}
 
-	// Start background sync with WebSocket progress updates
-	h.gameService.SyncGamesInBackground(func(phase string, currentGame string, processed, total int) {
+	// Start sync with WebSocket progress updates
+	h.gameService.SyncGames(func(phase string, currentGame string, processed, total int) {
 		percentage := 0
 		if total > 0 {
 			percentage = (processed * 100) / total

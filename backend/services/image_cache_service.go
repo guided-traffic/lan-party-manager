@@ -112,7 +112,6 @@ func (s *ImageCacheService) CacheImage(appID int) bool {
 		return false
 	}
 
-	log.Printf("Cached image for game %d", appID)
 	return true
 }
 
@@ -168,7 +167,6 @@ func (s *ImageCacheService) CacheImageFromURL(appID int, imageURL string) bool {
 		return false
 	}
 
-	log.Printf("Cached image for game %d from Steam API URL", appID)
 	return true
 }
 

@@ -120,8 +120,8 @@ func (h *AuthHandler) SteamCallback(c *gin.Context) {
 
 	if isNew {
 		log.Printf("Created new user: %s (ID: %d)", username, user.ID)
-		// Trigger background sync for new user's game library
-		h.triggerBackgroundSync()
+		// Trigger incremental sync for new user's game library
+		h.triggerBackgroundSync(steamID)
 	} else {
 		log.Printf("Updated existing user: %s (ID: %d)", username, user.ID)
 	}
@@ -233,24 +233,17 @@ func (h *AuthHandler) redirectWithError(c *gin.Context, errorMsg string) {
 	c.Redirect(http.StatusTemporaryRedirect, redirectURL.String())
 }
 
-// triggerBackgroundSync starts a background sync for game libraries
-// This is called when a new user registers to fetch their game library
-func (h *AuthHandler) triggerBackgroundSync() {
+// triggerBackgroundSync registers a new user's games and triggers sync if needed
+func (h *AuthHandler) triggerBackgroundSync(steamID string) {
 	if h.gameService == nil || h.wsHub == nil {
 		log.Println("AuthHandler: GameService or WebSocket Hub not configured, skipping background sync")
 		return
 	}
 
-	// Check if sync is already in progress
-	if h.gameService.IsSyncing() {
-		log.Println("AuthHandler: Background sync already in progress")
-		return
-	}
+	log.Printf("AuthHandler: Registering games for new user %s", steamID)
 
-	log.Println("AuthHandler: Triggering background sync for new user")
-
-	// Start background sync with WebSocket progress updates
-	h.gameService.SyncGamesInBackground(func(phase string, currentGame string, processed, total int) {
+	// Register user's games and trigger sync with WebSocket progress updates
+	h.gameService.RegisterUserGames(steamID, func(phase string, currentGame string, processed, total int) {
 		percentage := 0
 		if total > 0 {
 			percentage = (processed * 100) / total
