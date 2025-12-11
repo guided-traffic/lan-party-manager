@@ -59,7 +59,7 @@ func Init(cfg Config) error {
 		if err := initSQLite(cfg.SQLitePath); err != nil {
 			return err
 		}
-		return runSQLiteMigrations()
+		return runMigrations(DBTypeSQLite)
 
 	case DBTypeMySQL:
 		if cfg.MySQL.Host == "" || cfg.MySQL.Database == "" {
@@ -68,7 +68,7 @@ func Init(cfg Config) error {
 		if err := initMySQL(cfg.MySQL); err != nil {
 			return err
 		}
-		return runMySQLMigrations()
+		return runMigrations(DBTypeMySQL)
 
 	default:
 		return fmt.Errorf("unsupported database type: %s", cfg.Type)
