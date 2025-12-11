@@ -43,5 +43,5 @@ jobs:
         env:
           LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_AUTODISCOVER: 'true'
-          RENOVATE_AUTODISCOVER_FILTER: 'guided-traffic/lan-party-manager'
+          RENOVATE_AUTODISCOVER_FILTER: 'guided-traffic/rate-your-mate'
           RENOVATE_REQUIRE_CONFIG: 'required'

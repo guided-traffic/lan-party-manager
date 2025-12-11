@@ -1,0 +1,15 @@
+apiVersion: v2
+name: rate-your-mate
+description: A Helm chart for the rate-your-mate application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - lan-party
+  - gaming
+  - event-management
+maintainers:
+  - name: guided-traffic
+home: https://github.com/guided-traffic/rate-your-mate
+sources:
+  - https://github.com/guided-traffic/rate-your-mate

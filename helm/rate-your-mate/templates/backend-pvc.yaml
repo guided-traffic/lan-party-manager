@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "lan-party-manager.fullname" . }}-backend-data
+  name: {{ include "rate-your-mate.fullname" . }}-backend-data
   labels:
-    {{- include "lan-party-manager.backendLabels" . | nindent 4 }}
+    {{- include "rate-your-mate.backendLabels" . | nindent 4 }}
 spec:
   accessModes:
     - {{ .Values.backend.persistence.accessMode | default "ReadWriteOnce" }}

@@ -41,7 +41,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            guidedtraffic/lan-party-manager-backend
+            guidedtraffic/rate-your-mate-backend
           tags: |
             type=schedule
             type=ref,event=branch
@@ -52,12 +52,12 @@ jobs:
             type=sha
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
           labels: |
-            org.opencontainers.image.title=LAN Party Manager Backend
-            org.opencontainers.image.description=Go Backend for the LAN Party Manager
+            org.opencontainers.image.title=rate-your-mate Backend
+            org.opencontainers.image.description=Go Backend for rate-your-mate
             org.opencontainers.image.vendor=Guided Traffic
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.documentation=https://github.com/guided-traffic/lan-party-manager
-            org.opencontainers.image.source=https://github.com/guided-traffic/lan-party-manager
+            org.opencontainers.image.documentation=https://github.com/guided-traffic/rate-your-mate
+            org.opencontainers.image.source=https://github.com/guided-traffic/rate-your-mate
 
       - name: Get current epoch time
         id: time
@@ -91,7 +91,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0
         with:
-          image: guidedtraffic/lan-party-manager-backend:${{ steps.version.outputs.version }}
+          image: guidedtraffic/rate-your-mate-backend:${{ steps.version.outputs.version }}
           format: spdx-json
           upload-artifact: true
           upload-release-assets: false
@@ -103,7 +103,7 @@ jobs:
         uses: docker/scout-action@v1
         with:
           command: cves
-          image: guidedtraffic/lan-party-manager-backend:${{ steps.version.outputs.version }}
+          image: guidedtraffic/rate-your-mate-backend:${{ steps.version.outputs.version }}
           sarif-file: scout-report-backend.sarif
           summary: true
 
@@ -137,7 +137,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            guidedtraffic/lan-party-manager-frontend
+            guidedtraffic/rate-your-mate-frontend
           tags: |
             type=schedule
             type=ref,event=branch
@@ -148,12 +148,12 @@ jobs:
             type=sha
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
           labels: |
-            org.opencontainers.image.title=LAN Party Manager Frontend
-            org.opencontainers.image.description=Angular Frontend for the LAN Party Manager
+            org.opencontainers.image.title=rate-your-mate Frontend
+            org.opencontainers.image.description=Angular Frontend for rate-your-mate
             org.opencontainers.image.vendor=Guided Traffic
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.documentation=https://github.com/guided-traffic/lan-party-manager
-            org.opencontainers.image.source=https://github.com/guided-traffic/lan-party-manager
+            org.opencontainers.image.documentation=https://github.com/guided-traffic/rate-your-mate
+            org.opencontainers.image.source=https://github.com/guided-traffic/rate-your-mate
 
       - name: Get current epoch time
         id: time
@@ -187,7 +187,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: anchore/sbom-action@v0
         with:
-          image: guidedtraffic/lan-party-manager-frontend:${{ steps.version.outputs.version }}
+          image: guidedtraffic/rate-your-mate-frontend:${{ steps.version.outputs.version }}
           format: spdx-json
           upload-artifact: true
           upload-release-assets: false
@@ -199,7 +199,7 @@ jobs:
         uses: docker/scout-action@v1
         with:
           command: cves
-          image: guidedtraffic/lan-party-manager-frontend:${{ steps.version.outputs.version }}
+          image: guidedtraffic/rate-your-mate-frontend:${{ steps.version.outputs.version }}
           sarif-file: scout-report-frontend.sarif
           summary: true
 
@@ -226,19 +226,19 @@ jobs:
           # Extrahiere Version aus dem Release-Tag (ohne 'v' Prefix)
           VERSION=${GITHUB_REF_NAME#v}
           # Aktualisiere Chart und App Version
-          sed -i "s/^version:.*$/version: ${VERSION}/" helm/lan-party-manager/Chart.yaml
-          sed -i "s/^appVersion:.*$/appVersion: \"${VERSION}\"/" helm/lan-party-manager/Chart.yaml
+          sed -i "s/^version:.*$/version: ${VERSION}/" helm/rate-your-mate/Chart.yaml
+          sed -i "s/^appVersion:.*$/appVersion: \"${VERSION}\"/" helm/rate-your-mate/Chart.yaml
           # Aktualisiere Image Tags in values.yaml
-          sed -i "s/^\(\s*tag:\s*\).*$/\1\"${VERSION}\"/" helm/lan-party-manager/values.yaml
+          sed -i "s/^\(\s*tag:\s*\).*$/\1\"${VERSION}\"/" helm/rate-your-mate/values.yaml
 
       - name: Create Helm Package
         run: |
           cd helm
-          helm package lan-party-manager/
+          helm package rate-your-mate/
           mkdir -p repo
           mv *.tgz repo/
           # Erstelle temporären Index für das neue Chart
-          helm repo index repo/ --url https://guided-traffic.github.io/lan-party-manager/
+          helm repo index repo/ --url https://guided-traffic.github.io/rate-your-mate/
           cd ..
 
       - name: Configure Git
@@ -269,12 +269,12 @@ jobs:
             mkdir -p temp-repo
             cp *.tgz temp-repo/
             # Merge mit existierendem Index
-            helm repo index temp-repo/ --url https://guided-traffic.github.io/lan-party-manager/ --merge index.yaml
+            helm repo index temp-repo/ --url https://guided-traffic.github.io/rate-your-mate/ --merge index.yaml
             cp temp-repo/index.yaml .
             rm -rf temp-repo
           else
             # Erstelle neuen Index falls keiner existiert
-            helm repo index . --url https://guided-traffic.github.io/lan-party-manager/
+            helm repo index . --url https://guided-traffic.github.io/rate-your-mate/
           fi
 
           git add --force *.tgz index.yaml

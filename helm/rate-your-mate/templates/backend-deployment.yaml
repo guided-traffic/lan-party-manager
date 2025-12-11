@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lan-party-manager.fullname" . }}-backend
+  name: {{ include "rate-your-mate.fullname" . }}-backend
   labels:
-    {{- include "lan-party-manager.backendLabels" . | nindent 4 }}
+    {{- include "rate-your-mate.backendLabels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   # SQLite requires exclusive access - use Recreate strategy to avoid SQLITE_BUSY errors
@@ -12,7 +12,7 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "lan-party-manager.backendSelectorLabels" . | nindent 6 }}
+      {{- include "rate-your-mate.backendSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -20,7 +20,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "lan-party-manager.backendSelectorLabels" . | nindent 8 }}
+        {{- include "rate-your-mate.backendSelectorLabels" . | nindent 8 }}
         {{- with .Values.backend.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -29,7 +29,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "lan-party-manager.serviceAccountName" . }}
+      serviceAccountName: {{ include "rate-your-mate.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -75,14 +75,14 @@ spec:
             - name: STEAM_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "lan-party-manager.fullname" .)) }}
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "rate-your-mate.fullname" .)) }}
                   key: STEAM_API_KEY
             {{- end }}
             {{- if or .Values.secrets.existingSecret (and .Values.secrets.create .Values.secrets.jwtSecret) }}
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "lan-party-manager.fullname" .)) }}
+                  name: {{ .Values.secrets.existingSecret | default (printf "%s-secrets" (include "rate-your-mate.fullname" .)) }}
                   key: JWT_SECRET
             {{- end }}
           livenessProbe:
@@ -108,7 +108,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "lan-party-manager.fullname" . }}-backend-data
+            claimName: {{ include "rate-your-mate.fullname" . }}-backend-data
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

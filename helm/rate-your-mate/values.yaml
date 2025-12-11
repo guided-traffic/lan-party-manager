@@ -1,9 +1,9 @@
-# Default values for lan-party-manager
+# Default values for rate-your-mate
 replicaCount: 1
 
 frontend:
   image:
-    repository: docker.io/guidedtraffic/lan-party-manager-frontend
+    repository: docker.io/guidedtraffic/rate-your-mate-frontend
     tag: latest
     pullPolicy: IfNotPresent
   service:
@@ -21,7 +21,7 @@ frontend:
 
 backend:
   image:
-    repository: docker.io/guidedtraffic/lan-party-manager-backend
+    repository: docker.io/guidedtraffic/rate-your-mate-backend
     tag: latest
     pullPolicy: IfNotPresent
   service:

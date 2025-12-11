@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "lan-party-manager.fullname" . }}-frontend
+  name: {{ include "rate-your-mate.fullname" . }}-frontend
   labels:
-    {{- include "lan-party-manager.frontendLabels" . | nindent 4 }}
+    {{- include "rate-your-mate.frontendLabels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "lan-party-manager.frontendSelectorLabels" . | nindent 6 }}
+      {{- include "rate-your-mate.frontendSelectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -16,7 +16,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "lan-party-manager.frontendSelectorLabels" . | nindent 8 }}
+        {{- include "rate-your-mate.frontendSelectorLabels" . | nindent 8 }}
         {{- with .Values.frontend.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -25,7 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "lan-party-manager.serviceAccountName" . }}
+      serviceAccountName: {{ include "rate-your-mate.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:

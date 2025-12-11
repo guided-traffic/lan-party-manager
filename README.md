@@ -1,4 +1,4 @@
-# LAN Party Manager
+# rate-your-mate
 
 Eine Webanwendung für LAN-Partys, bei der sich Spieler gegenseitig mit Achievements bewerten können.
 
@@ -21,14 +21,14 @@ Eine Webanwendung für LAN-Partys, bei der sich Spieler gegenseitig mit Achievem
 ### Helm Repository hinzufügen
 
 ```bash
-helm repo add lan-party-manager https://guided-traffic.github.io/lan-party-manager
+helm repo add rate-your-mate https://guided-traffic.github.io/rate-your-mate
 helm repo update
 ```
 
 ### Installation
 
 ```bash
-helm install lan-party-manager lan-party-manager/lan-party-manager -f values.yaml
+helm install rate-your-mate rate-your-mate/rate-your-mate -f values.yaml
 ```
 
 ## ⚙️ Konfiguration
@@ -43,7 +43,7 @@ helm install lan-party-manager lan-party-manager/lan-party-manager -f values.yam
 | `ingress.enabled` | Ingress aktivieren | `false` |
 | `ingress.hosts` | Ingress Hosts Konfiguration | `[]` |
 
-Alle verfügbaren Optionen findest du in der [values.yaml](helm/lan-party-manager/values.yaml).
+Alle verfügbaren Optionen findest du in der [values.yaml](helm/rate-your-mate/values.yaml).
 
 ## 🎨 Credits
 
