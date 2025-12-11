@@ -11,53 +11,40 @@ import { AuthService } from '../../services/auth.service';
       <div class="login-container">
         <div class="login-header">
           <div class="logo">
-            <span class="logo-icon">🎮</span>
-            <h1 class="logo-text">LAN Party Manager</h1>
+            <img src="game-controller.png" alt="Rate your Mate" class="logo-icon">
+            <h1 class="logo-text">Rate your Mate</h1>
           </div>
-          <p class="tagline">Bewerte deine Mitspieler mit Achievements!</p>
+          <p class="tagline">Gemeinsam eine gute Zeit haben.</p>
         </div>
 
         <div class="login-card">
           <h2>Willkommen!</h2>
           <p class="description">
-            Melde dich mit deinem Steam-Account an, um andere Spieler zu bewerten
-            und Achievements zu sammeln.
+            Melde dich mit deinem Steam-Account an, um gemeinsam mit deinen Freunden zu spielen.
           </p>
 
           <button class="btn btn-steam" (click)="login()">
-            <svg viewBox="0 0 24 24" class="steam-icon">
-              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95 0-5.52-4.48-10-10-10z"/>
-            </svg>
+            <img src="logos/steam.png" alt="Steam" class="steam-icon">
             Mit Steam anmelden
           </button>
 
           <div class="features">
             <div class="feature">
+              <span class="feature-icon">🎮</span>
+              <span>Findet gemeinsame Games schneller</span>
+            </div>
+            <div class="feature">
               <span class="feature-icon">⭐</span>
-              <span>Bewerte andere Spieler</span>
+              <span>Bewertet euch gegenseitig</span>
             </div>
             <div class="feature">
               <span class="feature-icon">🏆</span>
-              <span>Sammle Achievements</span>
+              <span>Findet den besten Spieler unter euch</span>
             </div>
             <div class="feature">
-              <span class="feature-icon">📊</span>
-              <span>Steige im Leaderboard auf</span>
+              <span class="feature-icon">💬</span>
+              <span>Gemeinsamer Chat</span>
             </div>
-          </div>
-        </div>
-
-        <div class="achievements-preview">
-          <h3>Verfügbare Achievements</h3>
-          <div class="achievement-tags">
-            <span class="achievement-chip positive">🎯 Pro Player</span>
-            <span class="achievement-chip positive">👑 Endboss</span>
-            <span class="achievement-chip positive">🤝 Teamplayer</span>
-            <span class="achievement-chip positive">⭐ MVP</span>
-            <span class="achievement-chip negative">🐣 Noob</span>
-            <span class="achievement-chip negative">⛺ Camper</span>
-            <span class="achievement-chip negative">😤 Rage Quitter</span>
-            <span class="achievement-chip negative">☠️ Toxic</span>
           </div>
         </div>
       </div>
@@ -69,6 +56,7 @@ import { AuthService } from '../../services/auth.service';
     .login-page {
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 24px;
@@ -93,7 +81,8 @@ import { AuthService } from '../../services/auth.service';
       margin-bottom: 12px;
 
       .logo-icon {
-        font-size: 48px;
+        width: 48px;
+        height: 48px;
       }
 
       .logo-text {
@@ -152,8 +141,8 @@ import { AuthService } from '../../services/auth.service';
       }
 
       .steam-icon {
-        width: 24px;
-        height: 24px;
+        height: 42px;
+        width: auto;
       }
     }
 
@@ -175,43 +164,6 @@ import { AuthService } from '../../services/auth.service';
 
       .feature-icon {
         font-size: 20px;
-      }
-    }
-
-    .achievements-preview {
-      margin-top: 32px;
-      text-align: center;
-
-      h3 {
-        font-size: 16px;
-        color: $text-secondary;
-        margin-bottom: 16px;
-      }
-    }
-
-    .achievement-tags {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .achievement-chip {
-      padding: 6px 12px;
-      border-radius: $radius-full;
-      font-size: 13px;
-      font-weight: 500;
-
-      &.positive {
-        background: rgba($accent-positive, 0.12);
-        color: $accent-positive;
-        border: 1px solid rgba($accent-positive, 0.3);
-      }
-
-      &.negative {
-        background: rgba($accent-negative, 0.12);
-        color: $accent-negative;
-        border: 1px solid rgba($accent-negative, 0.3);
       }
     }
   `]
