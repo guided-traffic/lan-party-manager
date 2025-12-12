@@ -170,7 +170,7 @@ import { Subscription, interval } from 'rxjs';
     }
 
     .header-content {
-      max-width: 1250px;
+      max-width: 1400px;
       margin: 0 auto;
       height: 100%;
       display: flex;
