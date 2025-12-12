@@ -65,17 +65,15 @@ import { Subscription } from 'rxjs';
                     @if (vote.achievement.image_url) {
                       <img [src]="vote.achievement.image_url" [alt]="vote.achievement.name" class="achievement-icon" />
                     }
-                    {{ vote.achievement.name || vote.achievement_id }}
+                    <span class="achievement-info">
+                      <span class="achievement-name">{{ vote.achievement.name || vote.achievement_id }}</span>
+                      <span class="points-badge">+{{ vote.points }}</span>
+                    </span>
                   </span>
                 </div>
               </div>
 
               <div class="timeline-meta">
-                <span class="timeline-points" [attr.title]="getPointsLabel(vote.points)">
-                  @for (i of getPointsArray(vote.points); track i) {
-                    <span class="credit-icon">💎</span>
-                  }
-                </span>
                 <span class="timeline-time">
                   <span class="time-absolute">{{ formatAbsoluteTime(vote.created_at) }}</span>
                   <span class="time-relative">({{ formatRelativeTime(vote.created_at) }})</span>
@@ -111,6 +109,7 @@ import { Subscription } from 'rxjs';
       border: 1px solid $border-color;
       border-radius: $radius-lg;
       transition: all $transition-base;
+      position: relative;
 
       &:hover {
         border-color: $border-light;
@@ -145,20 +144,23 @@ import { Subscription } from 'rxjs';
     .timeline-avatars {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
       flex-shrink: 0;
 
       .avatar-wrapper {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 4px;
-        min-width: 64px;
+        gap: 6px;
+        width: 130px;
       }
 
       .avatar {
         position: relative;
         z-index: 1;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
       }
 
       .avatar-name {
@@ -166,18 +168,19 @@ import { Subscription } from 'rxjs';
         font-weight: 500;
         color: $text-secondary;
         text-align: center;
-        max-width: 80px;
+        width: 100%;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .arrow {
-        color: $text-muted;
-        font-size: 14px;
+        color: $text-secondary;
+        font-size: 32px;
         position: relative;
         z-index: 2;
-        margin-bottom: 18px;
+        margin-bottom: 22px;
+        flex-shrink: 0;
       }
     }
 
@@ -200,22 +203,9 @@ import { Subscription } from 'rxjs';
     }
 
     .timeline-meta {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
-      flex-shrink: 0;
-      min-width: 80px;
-    }
-
-    .timeline-points {
-      display: flex;
-      gap: 2px;
-
-      .credit-icon {
-        font-size: 14px;
-        filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
-      }
+      position: absolute;
+      top: 8px;
+      right: 12px;
     }
 
     .timeline-time {
