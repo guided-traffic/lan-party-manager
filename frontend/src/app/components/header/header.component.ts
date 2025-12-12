@@ -99,9 +99,6 @@ import { Subscription, interval } from 'rxjs';
               }
             </div>
 
-            <div class="ws-status" [class.connected]="ws.isConnected()">
-              <span class="ws-dot"></span>
-            </div>
           }
         </div>
       </div>
@@ -392,23 +389,7 @@ import { Subscription, interval } from 'rxjs';
       }
     }
 
-    .ws-status {
-      .ws-dot {
-        display: block;
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: $accent-error;
-        transition: background $transition-fast;
-      }
-
-      &.connected .ws-dot {
-        background: $accent-success;
-        box-shadow: 0 0 8px $accent-success;
-      }
-    }
-
-    @keyframes fadeIn {
+@keyframes fadeIn {
       from {
         opacity: 0;
         transform: translateY(-8px);

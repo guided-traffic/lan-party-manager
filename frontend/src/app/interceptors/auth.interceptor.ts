@@ -1,16 +1,19 @@
-import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
+import { HttpInterceptorFn, HttpErrorResponse, HttpResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import { catchError, tap, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { ConnectionStatusService } from '../services/connection-status.service';
+import { LatencyService } from '../services/latency.service';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const router = inject(Router);
   const connectionStatus = inject(ConnectionStatusService);
+  const latencyService = inject(LatencyService);
 
   const token = authService.getToken();
+  const startTime = performance.now();
 
   if (token) {
     req = req.clone({
@@ -21,6 +24,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   }
 
   return next(req).pipe(
+    tap(event => {
+      if (event instanceof HttpResponse) {
+        const latency = Math.round(performance.now() - startTime);
+        latencyService.recordLatency(latency);
+      }
+    }),
     catchError((error: HttpErrorResponse) => {
       console.log('[AuthInterceptor] Error:', error.status, req.url);
 

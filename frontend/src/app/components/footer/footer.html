@@ -34,6 +34,8 @@
         <span class="version-badge" [title]="'Backend Version' + (versionService.backendGitCommit() ? ' (' + versionService.backendGitCommit() + ')' : '')">
           <span class="version-label">Backend</span>
           <span class="version-value" [class.offline]="versionService.backendVersion() === 'offline'">{{ versionService.backendVersion() }}</span>
+          <span class="ws-dot" [class.connected]="ws.isConnected()" [title]="ws.isConnected() ? 'WebSocket verbunden' : 'WebSocket getrennt'"></span>
+          <span class="latency" [title]="'Durchschnittliche Latenz zum Backend'">{{ latencyService.latencyDisplay() }}</span>
         </span>
       </div>
     </div>
