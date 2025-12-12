@@ -190,8 +190,10 @@ generate_votes() {
         local neg_achievement=${NEGATIVE_ACHIEVEMENTS[$((RANDOM % ${#NEGATIVE_ACHIEVEMENTS[@]}))]}
         local random_hours=$((RANDOM % 48))
         local random_minutes=$((RANDOM % 60))
+        # 30% der Votes sind secret
+        local is_secret=$((RANDOM % 100 < 30 ? 1 : 0))
 
-        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, created_at) VALUES ($from_id, $toxic_player_id, '$neg_achievement', 1, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
+        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, is_secret, created_at) VALUES ($from_id, $toxic_player_id, '$neg_achievement', 1, $is_secret, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
         ((total_points--))
     done
 
@@ -208,8 +210,10 @@ generate_votes() {
         local neg_achievement=${NEGATIVE_ACHIEVEMENTS[$((RANDOM % ${#NEGATIVE_ACHIEVEMENTS[@]}))]}
         local random_hours=$((RANDOM % 48))
         local random_minutes=$((RANDOM % 60))
+        # 30% der Votes sind secret
+        local is_secret=$((RANDOM % 100 < 30 ? 1 : 0))
 
-        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, created_at) VALUES ($from_id, $teamkiller_id, '$neg_achievement', 1, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
+        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, is_secret, created_at) VALUES ($from_id, $teamkiller_id, '$neg_achievement', 1, $is_secret, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
         ((total_points--))
     done
 
@@ -228,8 +232,10 @@ generate_votes() {
         local pos_achievement=${POSITIVE_ACHIEVEMENTS[$((RANDOM % ${#POSITIVE_ACHIEVEMENTS[@]}))]}
         local random_hours=$((RANDOM % 48))
         local random_minutes=$((RANDOM % 60))
+        # 30% der Votes sind secret
+        local is_secret=$((RANDOM % 100 < 30 ? 1 : 0))
 
-        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, created_at) VALUES ($from_id, $progamer_id, '$pos_achievement', 1, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
+        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, is_secret, created_at) VALUES ($from_id, $progamer_id, '$pos_achievement', 1, $is_secret, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
         ((total_points++))
     done
 
@@ -252,8 +258,10 @@ generate_votes() {
             local pos_achievement=${POSITIVE_ACHIEVEMENTS[$((RANDOM % ${#POSITIVE_ACHIEVEMENTS[@]}))]}
             local random_hours=$((RANDOM % 48))
             local random_minutes=$((RANDOM % 60))
+            # 30% der Votes sind secret
+            local is_secret=$((RANDOM % 100 < 30 ? 1 : 0))
 
-            echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, created_at) VALUES ($from_id, $target_id, '$pos_achievement', 1, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
+            echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, is_secret, created_at) VALUES ($from_id, $target_id, '$pos_achievement', 1, $is_secret, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
             ((total_points++))
         done
     done
@@ -288,8 +296,10 @@ generate_votes() {
 
         local random_hours=$((RANDOM % 72))
         local random_minutes=$((RANDOM % 60))
+        # 30% der Votes sind secret
+        local is_secret=$((RANDOM % 100 < 30 ? 1 : 0))
 
-        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, created_at) VALUES ($from_id, $to_id, '$achievement', 1, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
+        echo "INSERT INTO votes (from_user_id, to_user_id, achievement_id, points, is_secret, created_at) VALUES ($from_id, $to_id, '$achievement', 1, $is_secret, DATE_SUB(NOW(), INTERVAL $random_hours HOUR) - INTERVAL $random_minutes MINUTE);" >> "$VOTES_SQL"
         ((remaining -= net_effect))
     done
 
