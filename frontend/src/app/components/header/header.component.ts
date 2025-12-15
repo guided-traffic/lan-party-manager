@@ -122,12 +122,22 @@ import { Subscription, interval } from 'rxjs';
                   <div class="ranking-chart">
                     <div class="players-track">
                       @for (player of sortedPlayers(); track player.user.id; let i = $index) {
+                        <!-- Bonus-Streifen (nur wenn Bonus > 0) -->
+                        @if (player.bonus_points > 0) {
+                          <div
+                            class="bonus-stripe"
+                            [style.left.%]="getPlayerPosition(player.net_votes)"
+                            [style.width.%]="getPlayerPosition(player.total_score) - getPlayerPosition(player.net_votes)"
+                            [style.top.%]="getPlayerYPosition(i)"
+                            [title]="'Bonus: +' + player.bonus_points + ' Punkte'"
+                          ></div>
+                        }
                         <div
                           class="player-marker"
                           [style.left.%]="getPlayerPosition(player.total_score)"
                           [style.top.%]="getPlayerYPosition(i)"
                           [style.z-index]="getZIndex(player.total_score)"
-                          [title]="player.user.username + ': ' + player.total_score + ' Punkte'"
+                          [title]="player.user.username + ': ' + player.total_score + ' Punkte (' + player.net_votes + ' Votes' + (player.bonus_points > 0 ? ' + ' + player.bonus_points + ' Bonus' : '') + ')'"
                         >
                           <img
                             [src]="player.user.avatar_small || player.user.avatar_url || '/assets/default-avatar.png'"
@@ -508,6 +518,16 @@ import { Subscription, interval } from 'rxjs';
       position: relative;
       height: 240px;
       margin-bottom: 8px;
+    }
+
+    .bonus-stripe {
+      position: absolute;
+      height: 3px;
+      background: linear-gradient(90deg, rgba(59, 130, 246, 0.6) 0%, rgba(59, 130, 246, 0.9) 100%);
+      border-radius: 2px;
+      transform: translateY(-50%);
+      pointer-events: none;
+      box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
     }
 
     .player-marker {
