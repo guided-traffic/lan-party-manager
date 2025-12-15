@@ -56,20 +56,6 @@ var Achievements = map[string]Achievement{
 	},
 
 	// Negative achievements
-	"noob": {
-		ID:          "noob",
-		Name:        "Noob",
-		Description: "Fragt nach Stunden immer noch 'Wie kaufe ich Waffen?",
-		ImageURL:    "/icons/achievements/baby-face.svg",
-		IsPositive:  false,
-	},
-	"camper": {
-		ID:          "camper",
-		Name:        "Camper",
-		Description: "Google Maps zeigt seinen Standort als 'dauerhaft' an.",
-		ImageURL:    "/icons/achievements/hidden.svg",
-		IsPositive:  false,
-	},
 	"rage-quitter": {
 		ID:          "rage-quitter",
 		Name:        "Rage Quitter",
@@ -82,13 +68,6 @@ var Achievements = map[string]Achievement{
 		Name:        "Toxic",
 		Description: "Caps Lock ist sein Standardmodus.",
 		ImageURL:    "/icons/achievements/death-juice.svg",
-		IsPositive:  false,
-	},
-	"afk-king": {
-		ID:          "afk-king",
-		Name:        "AFK King",
-		Description: "AFK so oft, dass die Bots ihn als Kollegen sehen.",
-		ImageURL:    "/icons/achievements/sleepy.svg",
 		IsPositive:  false,
 	},
 	"friendly-fire-expert": {
