@@ -6,6 +6,7 @@ import { Settings, UpdateSettingsRequest, CreditActionResponse } from '../models
 
 export interface VotingStatusResponse {
   voting_paused: boolean;
+  negative_voting_disabled: boolean;
 }
 
 export interface AdminPasswordRequiredResponse {
@@ -51,6 +52,10 @@ export class SettingsService {
   private votingPausedSignal = signal(false);
   readonly votingPaused = this.votingPausedSignal.asReadonly();
 
+  // Global negative voting disabled state
+  private negativeVotingDisabledSignal = signal(false);
+  readonly negativeVotingDisabled = this.negativeVotingDisabledSignal.asReadonly();
+
   constructor(private http: HttpClient) {
     // Load voting status on service init
     this.loadVotingStatus();
@@ -61,6 +66,7 @@ export class SettingsService {
     this.http.get<VotingStatusResponse>(`${environment.apiUrl}/voting-status`).subscribe({
       next: (response) => {
         this.votingPausedSignal.set(response.voting_paused);
+        this.negativeVotingDisabledSignal.set(response.negative_voting_disabled);
       },
       error: (err) => {
         console.error('Failed to load voting status:', err);
@@ -83,6 +89,7 @@ export class SettingsService {
       tap(settings => {
         this.settings.set(settings);
         this.votingPausedSignal.set(settings.voting_paused);
+        this.negativeVotingDisabledSignal.set(settings.negative_voting_disabled);
       })
     );
   }
@@ -92,6 +99,7 @@ export class SettingsService {
       tap(settings => {
         this.settings.set(settings);
         this.votingPausedSignal.set(settings.voting_paused);
+        this.negativeVotingDisabledSignal.set(settings.negative_voting_disabled);
       })
     );
   }
@@ -133,6 +141,9 @@ export class SettingsService {
   applySettingsUpdate(settings: Partial<Settings>): void {
     if (settings.voting_paused !== undefined) {
       this.votingPausedSignal.set(settings.voting_paused);
+    }
+    if (settings.negative_voting_disabled !== undefined) {
+      this.negativeVotingDisabledSignal.set(settings.negative_voting_disabled);
     }
     const current = this.settings();
     if (current) {

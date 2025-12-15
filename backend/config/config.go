@@ -47,9 +47,10 @@ type Config struct {
 	CreditMax             int
 
 	// Voting
-	VotingPaused       bool
-	VotingPausedAt     time.Time // Timestamp when voting was paused (for freezing credit generation)
-	VoteVisibilityMode string    // "user_choice", "all_secret", "all_public" - Default: user_choice
+	VotingPaused           bool
+	VotingPausedAt         time.Time // Timestamp when voting was paused (for freezing credit generation)
+	VoteVisibilityMode     string    // "user_choice", "all_secret", "all_public" - Default: user_choice
+	NegativeVotingDisabled bool      // When true, negative achievements cannot be voted
 
 	// Ranking
 	MinVotesForRanking int // Minimum total votes before rankings are displayed

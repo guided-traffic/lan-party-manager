@@ -63,6 +63,23 @@ func (h *VoteHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate achievement early to check if negative voting is disabled
+	if !models.IsValidAchievement(req.AchievementID) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid achievement ID",
+		})
+		return
+	}
+
+	// Check if negative voting is disabled
+	achievement, _ := models.GetAchievement(req.AchievementID)
+	if h.cfg.NegativeVotingDisabled && !achievement.IsPositive {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Negative voting is currently disabled by admin",
+		})
+		return
+	}
+
 	// Default to 1 point if not specified
 	points := req.Points
 	if points == 0 {
@@ -73,14 +90,6 @@ func (h *VoteHandler) Create(c *gin.Context) {
 	if points < 1 || points > 3 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Points must be between 1 and 3",
-		})
-		return
-	}
-
-	// Validate achievement
-	if !models.IsValidAchievement(req.AchievementID) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid achievement ID",
 		})
 		return
 	}
@@ -148,7 +157,6 @@ func (h *VoteHandler) Create(c *gin.Context) {
 
 	// Get the current king before creating votes (only for positive achievements)
 	var previousKingID uint64
-	achievement, _ := models.GetAchievement(req.AchievementID)
 	if achievement.IsPositive {
 		champsBefore, _ := h.voteRepo.GetChampions()
 		if champsBefore != nil && champsBefore.King != nil {

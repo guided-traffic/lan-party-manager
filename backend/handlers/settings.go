@@ -33,32 +33,36 @@ func NewSettingsHandler(cfg *config.Config, wsHub *websocket.Hub, userRepo *repo
 
 // GetSettingsRequest represents the response for GET /settings
 type GetSettingsResponse struct {
-	CreditIntervalMinutes int    `json:"credit_interval_minutes"`
-	CreditMax             int    `json:"credit_max"`
-	VotingPaused          bool   `json:"voting_paused"`
-	VoteVisibilityMode    string `json:"vote_visibility_mode"` // "user_choice", "all_secret", "all_public"
-	MinVotesForRanking    int    `json:"min_votes_for_ranking"`
+	CreditIntervalMinutes  int    `json:"credit_interval_minutes"`
+	CreditMax              int    `json:"credit_max"`
+	VotingPaused           bool   `json:"voting_paused"`
+	VoteVisibilityMode     string `json:"vote_visibility_mode"` // "user_choice", "all_secret", "all_public"
+	MinVotesForRanking     int    `json:"min_votes_for_ranking"`
+	NegativeVotingDisabled bool   `json:"negative_voting_disabled"`
 }
 
 // UpdateSettingsRequest represents the request body for PUT /settings
 type UpdateSettingsRequest struct {
-	CreditIntervalMinutes *int    `json:"credit_interval_minutes"`
-	CreditMax             *int    `json:"credit_max"`
-	VotingPaused          *bool   `json:"voting_paused"`
-	VoteVisibilityMode    *string `json:"vote_visibility_mode"` // "user_choice", "all_secret", "all_public"
-	MinVotesForRanking    *int    `json:"min_votes_for_ranking"`
+	CreditIntervalMinutes  *int    `json:"credit_interval_minutes"`
+	CreditMax              *int    `json:"credit_max"`
+	VotingPaused           *bool   `json:"voting_paused"`
+	VoteVisibilityMode     *string `json:"vote_visibility_mode"` // "user_choice", "all_secret", "all_public"
+	MinVotesForRanking     *int    `json:"min_votes_for_ranking"`
+	NegativeVotingDisabled *bool   `json:"negative_voting_disabled"`
 }
 
 // VotingStatusResponse represents the response for GET /voting-status
 type VotingStatusResponse struct {
-	VotingPaused bool `json:"voting_paused"`
+	VotingPaused           bool `json:"voting_paused"`
+	NegativeVotingDisabled bool `json:"negative_voting_disabled"`
 }
 
 // GetVotingStatus returns only the voting paused status (for non-admin users)
 // GET /api/v1/voting-status
 func (h *SettingsHandler) GetVotingStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, VotingStatusResponse{
-		VotingPaused: h.cfg.VotingPaused,
+		VotingPaused:           h.cfg.VotingPaused,
+		NegativeVotingDisabled: h.cfg.NegativeVotingDisabled,
 	})
 }
 
@@ -66,11 +70,12 @@ func (h *SettingsHandler) GetVotingStatus(c *gin.Context) {
 // GET /api/v1/admin/settings
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, GetSettingsResponse{
-		CreditIntervalMinutes: h.cfg.CreditIntervalMinutes,
-		CreditMax:             h.cfg.CreditMax,
-		VotingPaused:          h.cfg.VotingPaused,
-		VoteVisibilityMode:    h.cfg.VoteVisibilityMode,
-		MinVotesForRanking:    h.cfg.MinVotesForRanking,
+		CreditIntervalMinutes:  h.cfg.CreditIntervalMinutes,
+		CreditMax:              h.cfg.CreditMax,
+		VotingPaused:           h.cfg.VotingPaused,
+		VoteVisibilityMode:     h.cfg.VoteVisibilityMode,
+		MinVotesForRanking:     h.cfg.MinVotesForRanking,
+		NegativeVotingDisabled: h.cfg.NegativeVotingDisabled,
 	})
 }
 
@@ -166,22 +171,34 @@ func (h *SettingsHandler) UpdateSettings(c *gin.Context) {
 		log.Printf("Admin updated min_votes_for_ranking to %d", *req.MinVotesForRanking)
 	}
 
+	if req.NegativeVotingDisabled != nil {
+		h.cfg.NegativeVotingDisabled = *req.NegativeVotingDisabled
+		updated = true
+		if *req.NegativeVotingDisabled {
+			log.Printf("Admin disabled negative voting")
+		} else {
+			log.Printf("Admin enabled negative voting")
+		}
+	}
+
 	// Broadcast settings change to all connected clients
 	if updated {
 		h.wsHub.BroadcastSettingsUpdate(&websocket.SettingsPayload{
-			CreditIntervalMinutes: h.cfg.CreditIntervalMinutes,
-			CreditMax:             h.cfg.CreditMax,
-			VotingPaused:          h.cfg.VotingPaused,
-			VoteVisibilityMode:    h.cfg.VoteVisibilityMode,
+			CreditIntervalMinutes:  h.cfg.CreditIntervalMinutes,
+			CreditMax:              h.cfg.CreditMax,
+			VotingPaused:           h.cfg.VotingPaused,
+			VoteVisibilityMode:     h.cfg.VoteVisibilityMode,
+			NegativeVotingDisabled: h.cfg.NegativeVotingDisabled,
 		})
 	}
 
 	c.JSON(http.StatusOK, GetSettingsResponse{
-		CreditIntervalMinutes: h.cfg.CreditIntervalMinutes,
-		CreditMax:             h.cfg.CreditMax,
-		VotingPaused:          h.cfg.VotingPaused,
-		VoteVisibilityMode:    h.cfg.VoteVisibilityMode,
-		MinVotesForRanking:    h.cfg.MinVotesForRanking,
+		CreditIntervalMinutes:  h.cfg.CreditIntervalMinutes,
+		CreditMax:              h.cfg.CreditMax,
+		VotingPaused:           h.cfg.VotingPaused,
+		VoteVisibilityMode:     h.cfg.VoteVisibilityMode,
+		MinVotesForRanking:     h.cfg.MinVotesForRanking,
+		NegativeVotingDisabled: h.cfg.NegativeVotingDisabled,
 	})
 }
 

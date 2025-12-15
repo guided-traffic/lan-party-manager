@@ -25,6 +25,7 @@ export interface SettingsPayload {
   credit_max: number;
   voting_paused: boolean;
   vote_visibility_mode: 'user_choice' | 'all_secret' | 'all_public';
+  negative_voting_disabled: boolean;
 }
 
 export interface CreditActionPayload {

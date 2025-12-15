@@ -4,6 +4,7 @@ export interface Settings {
   voting_paused: boolean;
   vote_visibility_mode: 'user_choice' | 'all_secret' | 'all_public';
   min_votes_for_ranking: number;
+  negative_voting_disabled: boolean;
 }
 
 export interface UpdateSettingsRequest {
@@ -12,6 +13,7 @@ export interface UpdateSettingsRequest {
   voting_paused?: boolean;
   vote_visibility_mode?: 'user_choice' | 'all_secret' | 'all_public';
   min_votes_for_ranking?: number;
+  negative_voting_disabled?: boolean;
 }
 
 export interface CreditActionResponse {

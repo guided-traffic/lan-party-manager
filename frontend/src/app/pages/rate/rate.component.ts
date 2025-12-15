@@ -108,26 +108,28 @@ import { Achievement } from '../../models/achievement.model';
               }
             </div>
 
-            <h3 class="achievement-category negative">
-              <span>👎</span> Negative Achievements
-            </h3>
-            <div class="achievements-grid">
-              @for (achievement of negativeAchievements(); track achievement.id) {
-                <button
-                  class="achievement-btn negative"
-                  [class.selected]="selectedAchievement()?.id === achievement.id"
-                  (click)="selectAchievement(achievement)"
-                >
-                  @if (achievement.image_url) {
-                    <div class="achievement-icon-wrapper shatter-dust">
-                      <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon negative" />
-                    </div>
-                  }
-                  <span class="achievement-name">{{ achievement.name }}</span>
-                  <span class="achievement-desc">{{ achievement.description }}</span>
-                </button>
-              }
-            </div>
+            @if (!negativeVotingDisabled()) {
+              <h3 class="achievement-category negative">
+                <span>👎</span> Negative Achievements
+              </h3>
+              <div class="achievements-grid">
+                @for (achievement of negativeAchievements(); track achievement.id) {
+                  <button
+                    class="achievement-btn negative"
+                    [class.selected]="selectedAchievement()?.id === achievement.id"
+                    (click)="selectAchievement(achievement)"
+                  >
+                    @if (achievement.image_url) {
+                      <div class="achievement-icon-wrapper shatter-dust">
+                        <img [src]="achievement.image_url" [alt]="achievement.name" class="achievement-icon negative" />
+                      </div>
+                    }
+                    <span class="achievement-name">{{ achievement.name }}</span>
+                    <span class="achievement-desc">{{ achievement.description }}</span>
+                  </button>
+                }
+              </div>
+            }
           </div>
         </div>
       }
@@ -725,6 +727,9 @@ export class RateComponent implements OnInit {
 
   // Expose votingPaused from SettingsService
   votingPaused = this.settingsService.votingPaused;
+
+  // Expose negativeVotingDisabled from SettingsService
+  negativeVotingDisabled = this.settingsService.negativeVotingDisabled;
 
   loadingUsers = signal(true);
   submitting = signal(false);

@@ -193,6 +193,30 @@ import { GameService } from '../../services/game.service';
               </button>
             </div>
 
+            <div class="voting-control-card" [class.disabled]="negativeVotingDisabled()">
+              <div class="voting-status">
+                <span class="status-icon">{{ negativeVotingDisabled() ? '🚫' : '👎' }}</span>
+                <div class="status-text">
+                  <h3>Negative Bewertungen</h3>
+                  <p>{{ negativeVotingDisabled() ? 'Negative Bewertungen sind deaktiviert' : 'Negative Bewertungen sind erlaubt' }}</p>
+                </div>
+              </div>
+              <button
+                (click)="toggleNegativeVoting()"
+                [disabled]="togglingNegative()"
+                class="toggle-pause-btn"
+                [class.disabled]="negativeVotingDisabled()"
+              >
+                @if (togglingNegative()) {
+                  <span class="btn-spinner"></span>
+                } @else if (negativeVotingDisabled()) {
+                  👎 Negative Bewertungen erlauben
+                } @else {
+                  🚫 Negative Bewertungen deaktivieren
+                }
+              </button>
+            </div>
+
             <div class="visibility-card">
               <h3>👁️ Abstimmungs-Sichtbarkeit</h3>
               <p class="action-description">
@@ -1527,6 +1551,8 @@ export class AdminComponent implements OnInit, AfterViewChecked {
   givingCredits = signal(false);
   togglingPause = signal(false);
   votingPaused = signal(false);
+  togglingNegative = signal(false);
+  negativeVotingDisabled = signal(false);
   invalidatingCache = signal(false);
   deletingVotes = signal(false);
   confirmingDeleteVotes = signal(false);
@@ -1638,6 +1664,7 @@ export class AdminComponent implements OnInit, AfterViewChecked {
         this.creditMax = settings.credit_max;
         this.minVotesForRanking = settings.min_votes_for_ranking;
         this.votingPaused.set(settings.voting_paused);
+        this.negativeVotingDisabled.set(settings.negative_voting_disabled);
         this.voteVisibilityMode.set(settings.vote_visibility_mode || 'user_choice');
         this.originalCreditIntervalMinutes = settings.credit_interval_minutes;
         this.originalCreditMax = settings.credit_max;
@@ -1742,6 +1769,28 @@ export class AdminComponent implements OnInit, AfterViewChecked {
       error: (err) => {
         console.error('Failed to toggle voting pause:', err);
         this.togglingPause.set(false);
+        this.notifications.error('❌ Fehler', 'Status konnte nicht geändert werden');
+      }
+    });
+  }
+
+  toggleNegativeVoting(): void {
+    const newDisabledState = !this.negativeVotingDisabled();
+    this.togglingNegative.set(true);
+
+    this.settingsService.updateSettings({ negative_voting_disabled: newDisabledState }).subscribe({
+      next: (settings) => {
+        this.negativeVotingDisabled.set(settings.negative_voting_disabled);
+        this.togglingNegative.set(false);
+        if (settings.negative_voting_disabled) {
+          this.notifications.success('🚫 Negative Bewertungen deaktiviert', 'Spieler können keine negativen Bewertungen mehr abgeben');
+        } else {
+          this.notifications.success('👎 Negative Bewertungen aktiviert', 'Spieler können wieder negative Bewertungen abgeben');
+        }
+      },
+      error: (err) => {
+        console.error('Failed to toggle negative voting:', err);
+        this.togglingNegative.set(false);
         this.notifications.error('❌ Fehler', 'Status konnte nicht geändert werden');
       }
     });

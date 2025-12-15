@@ -837,6 +837,10 @@ export class HeaderComponent implements OnInit, OnDestroy {
       const wasVotingPaused = this.settingsService.votingPaused();
       const isNowPaused = settings.voting_paused;
 
+      // Check if negative_voting_disabled status actually changed
+      const wasNegativeDisabled = this.settingsService.negativeVotingDisabled();
+      const isNowNegativeDisabled = settings.negative_voting_disabled;
+
       this.settingsMaxCredits.set(settings.credit_max);
       this.settingsCreditIntervalSeconds.set(settings.credit_interval_minutes * 60);
       this.settingsService.applySettingsUpdate(settings);
@@ -850,6 +854,15 @@ export class HeaderComponent implements OnInit, OnDestroy {
           // Refresh user data to get current credit state after voting is resumed
           // This ensures the timer starts with the correct value from the backend
           this.auth.refreshUser();
+        }
+      }
+
+      // Only show notification if negative_voting_disabled status actually changed
+      if (wasNegativeDisabled !== isNowNegativeDisabled) {
+        if (isNowNegativeDisabled) {
+          this.notifications.info('🚫 Negative Bewertungen deaktiviert', 'Der Admin hat negative Bewertungen deaktiviert');
+        } else {
+          this.notifications.info('👎 Negative Bewertungen aktiviert', 'Negative Bewertungen sind wieder möglich');
         }
       }
     });
