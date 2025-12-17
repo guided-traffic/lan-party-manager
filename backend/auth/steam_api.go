@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -109,22 +110,29 @@ func (c *SteamAPIClient) GetPlayerSummaries(steamIDs []string) ([]SteamPlayer, e
 	)
 
 	// Make the request
+	log.Printf("[STEAM API] GET /ISteamUser/GetPlayerSummaries/v2 - Fetching %d player(s): %s", len(realSteamIDs), strings.Join(realSteamIDs, ", "))
+	start := time.Now()
 	resp, err := c.httpClient.Get(url)
+	duration := time.Since(start)
 	if err != nil {
+		log.Printf("[STEAM API] ERROR - GetPlayerSummaries failed after %v: %v", duration, err)
 		return nil, fmt.Errorf("failed to call Steam API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[STEAM API] ERROR - GetPlayerSummaries returned status %d after %v", resp.StatusCode, duration)
 		return nil, fmt.Errorf("Steam API returned status %d", resp.StatusCode)
 	}
 
 	// Parse the response
 	var apiResp steamAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		log.Printf("[STEAM API] ERROR - Failed to parse response after %v: %v", duration, err)
 		return nil, fmt.Errorf("failed to parse Steam API response: %w", err)
 	}
 
+	log.Printf("[STEAM API] OK - GetPlayerSummaries returned %d player(s) in %v", len(apiResp.Response.Players), duration)
 	return apiResp.Response.Players, nil
 }
 
@@ -155,34 +163,52 @@ func GetAvatarOrFallback(avatarURL, username string) string {
 // CheckConnectivity verifies that the Steam API endpoints are reachable
 // Returns nil if all checks pass, otherwise returns an error describing the issue
 func (c *SteamAPIClient) CheckConnectivity() error {
+	log.Printf("[STEAM API] Checking connectivity to Steam services...")
+
 	// Check Steam Community (OpenID endpoint)
 	steamCommunityURL := "https://steamcommunity.com/openid"
+	log.Printf("[STEAM API] HEAD %s", steamCommunityURL)
+	start := time.Now()
 	resp, err := c.httpClient.Head(steamCommunityURL)
+	duration := time.Since(start)
 	if err != nil {
+		log.Printf("[STEAM API] ERROR - Steam Community unreachable after %v: %v", duration, err)
 		return fmt.Errorf("cannot reach Steam Community (%s): %w", steamCommunityURL, err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode >= 400 {
+		log.Printf("[STEAM API] ERROR - Steam Community returned status %d after %v", resp.StatusCode, duration)
 		return fmt.Errorf("Steam Community returned status %d", resp.StatusCode)
 	}
+	log.Printf("[STEAM API] OK - Steam Community reachable (status %d, %v)", resp.StatusCode, duration)
 
 	// Check Steam Web API (only if API key is configured)
 	if c.apiKey != "" {
 		// Use a simple API call to verify connectivity and API key validity
 		// We use GetPlayerSummaries with Valve's test Steam ID
 		testURL := fmt.Sprintf("%s/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=76561197960435530", steamAPIBaseURL, c.apiKey)
+		log.Printf("[STEAM API] GET /ISteamUser/GetPlayerSummaries/v2 - Testing API key validity")
+		start = time.Now()
 		resp, err := c.httpClient.Get(testURL)
+		duration = time.Since(start)
 		if err != nil {
+			log.Printf("[STEAM API] ERROR - Steam Web API unreachable after %v: %v", duration, err)
 			return fmt.Errorf("cannot reach Steam Web API (%s): %w", steamAPIBaseURL, err)
 		}
 		resp.Body.Close()
 		if resp.StatusCode == 401 || resp.StatusCode == 403 {
+			log.Printf("[STEAM API] ERROR - API key invalid/unauthorized (status %d, %v)", resp.StatusCode, duration)
 			return fmt.Errorf("Steam API key is invalid or unauthorized (status %d)", resp.StatusCode)
 		}
 		if resp.StatusCode >= 400 {
+			log.Printf("[STEAM API] ERROR - Steam Web API returned status %d after %v", resp.StatusCode, duration)
 			return fmt.Errorf("Steam Web API returned status %d", resp.StatusCode)
 		}
+		log.Printf("[STEAM API] OK - Steam Web API reachable, API key valid (status %d, %v)", resp.StatusCode, duration)
+	} else {
+		log.Printf("[STEAM API] WARN - No API key configured, skipping Web API check")
 	}
 
+	log.Printf("[STEAM API] Connectivity check completed successfully")
 	return nil
 }

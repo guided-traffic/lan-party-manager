@@ -34,7 +34,7 @@ import { Subscription } from 'rxjs';
               {{ formatCooldown(refreshCooldownRemaining()) }}
             } @else {
               <span class="refresh-icon">🔄</span>
-              Meine Spiele aktualisieren
+              Meine Profil von Steam aktualisieren
             }
           </button>
         </div>

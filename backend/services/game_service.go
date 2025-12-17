@@ -357,7 +357,6 @@ type ownedGamesResponse struct {
 func (s *GameService) fetchUserGames(steamID string) ([]models.GameOwnership, error) {
 	// Skip fake users (used for development/testing)
 	if strings.HasPrefix(steamID, "FAKE_") {
-		log.Printf("Skipping Steam API call for fake user: %s", steamID)
 		return []models.GameOwnership{}, nil
 	}
 
@@ -372,20 +371,28 @@ func (s *GameService) fetchUserGames(steamID string) ([]models.GameOwnership, er
 		steamID,
 	)
 
+	log.Printf("[STEAM API] GET /IPlayerService/GetOwnedGames/v1 - Fetching games for user: %s", steamID)
+	start := time.Now()
 	resp, err := s.httpClient.Get(url)
+	duration := time.Since(start)
 	if err != nil {
+		log.Printf("[STEAM API] ERROR - GetOwnedGames failed for user %s after %v: %v", steamID, duration, err)
 		return nil, fmt.Errorf("failed to call Steam API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[STEAM API] ERROR - GetOwnedGames returned status %d for user %s after %v", resp.StatusCode, steamID, duration)
 		return nil, fmt.Errorf("Steam API returned status %d", resp.StatusCode)
 	}
 
 	var apiResp ownedGamesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		log.Printf("[STEAM API] ERROR - Failed to parse GetOwnedGames response for user %s: %v", steamID, err)
 		return nil, fmt.Errorf("failed to parse Steam API response: %w", err)
 	}
+
+	log.Printf("[STEAM API] OK - GetOwnedGames returned %d games for user %s in %v", len(apiResp.Response.Games), steamID, duration)
 
 	var games []models.GameOwnership
 	var gamesToSave []struct {
@@ -535,32 +542,42 @@ func (s *GameService) fetchGameCategories(games []*models.Game) {
 func (s *GameService) fetchGameCategoriesFromStore(appID int) (*GameStoreData, error) {
 	url := fmt.Sprintf("%s/appdetails?appids=%d&cc=de", steamStoreBaseURL, appID)
 
+	log.Printf("[STEAM STORE API] GET /appdetails - Fetching details for game %d", appID)
+	start := time.Now()
 	resp, err := s.httpClient.Get(url)
+	duration := time.Since(start)
 	if err != nil {
+		log.Printf("[STEAM STORE API] ERROR - appdetails failed for game %d after %v: %v", appID, duration, err)
 		return nil, fmt.Errorf("failed to call Steam Store API: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Handle rate limiting
 	if resp.StatusCode == http.StatusTooManyRequests {
+		log.Printf("[STEAM STORE API] WARN - Rate limited (429) for game %d after %v", appID, duration)
 		s.setRateLimited()
 		return nil, fmt.Errorf("rate limited (429)")
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[STEAM STORE API] ERROR - appdetails returned status %d for game %d after %v", resp.StatusCode, appID, duration)
 		return nil, fmt.Errorf("Steam Store API returned status %d", resp.StatusCode)
 	}
 
 	var apiResp storeAppDetailsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		log.Printf("[STEAM STORE API] ERROR - Failed to parse appdetails response for game %d: %v", appID, err)
 		return nil, fmt.Errorf("failed to parse Steam Store API response: %w", err)
 	}
 
 	appIDStr := fmt.Sprintf("%d", appID)
 	appData, ok := apiResp[appIDStr]
 	if !ok || !appData.Success {
+		log.Printf("[STEAM STORE API] WARN - Game %d not found or not accessible after %v", appID, duration)
 		return nil, fmt.Errorf("game not found or not accessible")
 	}
+
+	log.Printf("[STEAM STORE API] OK - appdetails returned data for game %d (%s) in %v", appID, appData.Data.Name, duration)
 
 	var categories []string
 	for _, cat := range appData.Data.Categories {
@@ -621,37 +638,42 @@ type steamReviewResponse struct {
 func (s *GameService) fetchGameReviewScore(appID int) int {
 	url := fmt.Sprintf("https://store.steampowered.com/appreviews/%d?json=1&purchase_type=all&language=all", appID)
 
+	log.Printf("[STEAM STORE API] GET /appreviews - Fetching reviews for game %d", appID)
+	start := time.Now()
 	resp, err := s.httpClient.Get(url)
+	duration := time.Since(start)
 	if err != nil {
-		log.Printf("Failed to fetch reviews for game %d: %v", appID, err)
+		log.Printf("[STEAM STORE API] ERROR - appreviews failed for game %d after %v: %v", appID, duration, err)
 		return -1
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Steam Review API returned status %d for game %d", resp.StatusCode, appID)
+		log.Printf("[STEAM STORE API] ERROR - appreviews returned status %d for game %d after %v", resp.StatusCode, appID, duration)
 		return -1
 	}
 
 	var reviewResp steamReviewResponse
 	if err := json.NewDecoder(resp.Body).Decode(&reviewResp); err != nil {
-		log.Printf("Failed to parse review response for game %d: %v", appID, err)
+		log.Printf("[STEAM STORE API] ERROR - Failed to parse appreviews response for game %d: %v", appID, err)
 		return -1
 	}
 
 	if reviewResp.Success != 1 {
-		log.Printf("Steam Review API returned unsuccessful for game %d", appID)
+		log.Printf("[STEAM STORE API] WARN - appreviews returned unsuccessful for game %d after %v", appID, duration)
 		return -1
 	}
 
 	totalReviews := reviewResp.QuerySummary.TotalPositive + reviewResp.QuerySummary.TotalNegative
 	if totalReviews < 10 {
 		// Not enough reviews for a meaningful percentage
+		log.Printf("[STEAM STORE API] OK - appreviews for game %d has only %d reviews (not enough) in %v", appID, totalReviews, duration)
 		return -1
 	}
 
 	// Calculate percentage of positive reviews
 	percentage := (reviewResp.QuerySummary.TotalPositive * 100) / totalReviews
+	log.Printf("[STEAM STORE API] OK - appreviews for game %d: %d%% positive (%d reviews) in %v", appID, percentage, totalReviews, duration)
 	return percentage
 }
 

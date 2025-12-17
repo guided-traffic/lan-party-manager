@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -32,18 +33,28 @@ func NewSteamAuth(backendURL string) *SteamAuth {
 
 // GetAuthURL returns the Steam OpenID login URL
 func (s *SteamAuth) GetAuthURL() (string, error) {
-	return openid.RedirectURL(
+	log.Printf("[STEAM OPENID] Generating auth URL for callback: %s", s.callbackURL)
+	authURL, err := openid.RedirectURL(
 		steamOpenIDEndpoint,
 		s.callbackURL,
 		"",
 	)
+	if err != nil {
+		log.Printf("[STEAM OPENID] ERROR - Failed to generate auth URL: %v", err)
+		return "", err
+	}
+	log.Printf("[STEAM OPENID] OK - Auth URL generated, redirecting user to Steam")
+	return authURL, nil
 }
 
 // ValidateCallback validates the OpenID callback and returns the Steam ID
 func (s *SteamAuth) ValidateCallback(fullURL string) (string, error) {
+	log.Printf("[STEAM OPENID] Validating callback from Steam...")
+
 	// Verify the OpenID response
 	id, err := openid.Verify(fullURL, s.discovery, s.nonceStore)
 	if err != nil {
+		log.Printf("[STEAM OPENID] ERROR - OpenID verification failed: %v", err)
 		return "", fmt.Errorf("failed to verify OpenID response: %w", err)
 	}
 
@@ -51,9 +62,11 @@ func (s *SteamAuth) ValidateCallback(fullURL string) (string, error) {
 	// Format: https://steamcommunity.com/openid/id/76561198012345678
 	steamID, err := extractSteamID(id)
 	if err != nil {
+		log.Printf("[STEAM OPENID] ERROR - Failed to extract Steam ID from: %s - %v", id, err)
 		return "", err
 	}
 
+	log.Printf("[STEAM OPENID] OK - User authenticated successfully (Steam ID: %s)", steamID)
 	return steamID, nil
 }
 
