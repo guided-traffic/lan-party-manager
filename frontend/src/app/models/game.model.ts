@@ -32,3 +32,16 @@ export interface GamesResponse {
   all_games: Game[];
   sync_status?: SyncStatus;
 }
+
+export interface RefreshMyGamesResponse {
+  message: string;
+  game_count: number;
+  next_refresh_at?: string;
+  warning?: string;
+}
+
+export interface RefreshMyGamesError {
+  error: string;
+  remaining_seconds?: number;
+  cooldown_ends_at?: string;
+}

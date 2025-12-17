@@ -43,10 +43,10 @@ func (r *UserRepository) Create(user *models.User) error {
 func (r *UserRepository) GetByID(id uint64) (*models.User, error) {
 	user := &models.User{}
 	err := database.DB.QueryRow(`
-		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, created_at, updated_at
+		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, last_games_refresh_at, created_at, updated_at
 		FROM users WHERE id = ?`, id,
 	).Scan(&user.ID, &user.SteamID, &user.Username, &user.AvatarURL, &user.AvatarSmall, &user.ProfileURL,
-		&user.Credits, &user.LastCreditAt, &user.CreatedAt, &user.UpdatedAt)
+		&user.Credits, &user.LastCreditAt, &user.LastGamesRefreshAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -62,10 +62,10 @@ func (r *UserRepository) GetByID(id uint64) (*models.User, error) {
 func (r *UserRepository) GetBySteamID(steamID string) (*models.User, error) {
 	user := &models.User{}
 	err := database.DB.QueryRow(`
-		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, created_at, updated_at
+		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, last_games_refresh_at, created_at, updated_at
 		FROM users WHERE steam_id = ?`, steamID,
 	).Scan(&user.ID, &user.SteamID, &user.Username, &user.AvatarURL, &user.AvatarSmall, &user.ProfileURL,
-		&user.Credits, &user.LastCreditAt, &user.CreatedAt, &user.UpdatedAt)
+		&user.Credits, &user.LastCreditAt, &user.LastGamesRefreshAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -80,7 +80,7 @@ func (r *UserRepository) GetBySteamID(steamID string) (*models.User, error) {
 // GetAll returns all users
 func (r *UserRepository) GetAll() ([]models.User, error) {
 	rows, err := database.DB.Query(`
-		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, created_at, updated_at
+		SELECT id, steam_id, username, avatar_url, avatar_small, profile_url, credits, last_credit_at, last_games_refresh_at, created_at, updated_at
 		FROM users ORDER BY username`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all users: %w", err)
@@ -91,7 +91,7 @@ func (r *UserRepository) GetAll() ([]models.User, error) {
 	for rows.Next() {
 		var user models.User
 		err := rows.Scan(&user.ID, &user.SteamID, &user.Username, &user.AvatarURL, &user.AvatarSmall, &user.ProfileURL,
-			&user.Credits, &user.LastCreditAt, &user.CreatedAt, &user.UpdatedAt)
+			&user.Credits, &user.LastCreditAt, &user.LastGamesRefreshAt, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user row: %w", err)
 		}
@@ -128,6 +128,22 @@ func (r *UserRepository) UpdateCredits(userID uint64, credits int, lastCreditAt 
 		)
 		if err != nil {
 			return fmt.Errorf("failed to update credits: %w", err)
+		}
+		return nil
+	})
+}
+
+// UpdateLastGamesRefresh updates the last games refresh timestamp for a user
+func (r *UserRepository) UpdateLastGamesRefresh(userID uint64) error {
+	return database.WithRetry(func() error {
+		_, err := database.DB.Exec(`
+			UPDATE users
+			SET last_games_refresh_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ?`,
+			userID,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update last games refresh: %w", err)
 		}
 		return nil
 	})

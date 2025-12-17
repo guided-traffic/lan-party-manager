@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { GamesResponse, Game, SyncStatus } from '../models/game.model';
+import { GamesResponse, Game, SyncStatus, RefreshMyGamesResponse } from '../models/game.model';
 
 @Injectable({
   providedIn: 'root'
@@ -48,6 +48,14 @@ export class GameService {
    */
   invalidateCache(): Observable<{ message: string }> {
     return this.http.post<{ message: string }>(`${environment.apiUrl}/admin/games/invalidate-cache`, {});
+  }
+
+  /**
+   * Refresh the current user's game library from Steam
+   * Can only be called every 5 minutes
+   */
+  refreshMyGames(): Observable<RefreshMyGamesResponse> {
+    return this.http.post<RefreshMyGamesResponse>(`${environment.apiUrl}/games/refresh-my-games`, {});
   }
 
   /**

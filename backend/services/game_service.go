@@ -418,6 +418,25 @@ func (s *GameService) fetchUserGames(steamID string) ([]models.GameOwnership, er
 	return games, nil
 }
 
+// RefreshUserGames fetches and updates the games for a specific user from Steam API
+// Returns error if the user is on cooldown (can only refresh every 5 minutes)
+func (s *GameService) RefreshUserGames(steamID string) (int, error) {
+	log.Printf("[GameRefresh] Refreshing games for user %s", steamID)
+
+	// Fetch games from Steam API
+	games, err := s.fetchUserGames(steamID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch games from Steam: %w", err)
+	}
+
+	log.Printf("[GameRefresh] User %s has %d games", steamID, len(games))
+
+	// Invalidate in-memory cache so next request gets fresh data
+	s.InvalidateCache()
+
+	return len(games), nil
+}
+
 // storeAppDetailsResponse represents Steam Store API response
 type storeAppDetailsResponse map[string]struct {
 	Success bool `json:"success"`
@@ -864,94 +883,72 @@ func (s *GameService) GetMultiplayerGamesCached() (*models.GamesResponse, bool, 
 	return games, needsSync, nil
 }
 
-// buildGamesFromCache builds the games response using only DB-cached data
+// buildGamesFromCache builds the games response using only DB-cached data (no Steam API calls)
 func (s *GameService) buildGamesFromCache() (*models.GamesResponse, bool, error) {
-	users, err := s.userRepo.GetAll()
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to get users: %w", err)
-	}
-
 	pinnedGameIDs := s.cfg.PinnedGameIDs
 	needsSync := false
 
-	// Even with no users, we still want to show pinned games
-	if len(users) == 0 {
-		log.Printf("[GameSync] No users, loading pinned games only")
+	// Load all game owners from DB
+	ownersMap, err := s.gameOwnerRepo.GetAllOwnersGroupedByAppID()
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get game owners: %w", err)
+	}
+
+	// If no game owners in DB, we need a sync
+	if len(ownersMap) == 0 {
+		log.Printf("[GameSync] No game owners in DB, loading pinned games only")
 		pinnedGames := s.loadPinnedGamesFromCache(&needsSync)
+		needsSync = true // Trigger sync to populate game owners
 		return &models.GamesResponse{
 			PinnedGames: pinnedGames,
 			AllGames:    []models.Game{},
 		}, needsSync, nil
 	}
 
-	log.Printf("[GameSync] Building games from cache for %d users", len(users))
+	log.Printf("[GameSync] Building games from DB cache, %d games with owners", len(ownersMap))
 
-	// Collect all games from all users (this is fast - just Steam API call)
+	// Build games from DB cache
 	gameMap := make(map[int]*models.Game)
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	needsSync = false
 
-	for _, user := range users {
-		wg.Add(1)
-		go func(steamID string) {
-			defer wg.Done()
+	for appID, owners := range ownersMap {
+		// Try to load game details from DB cache
+		cached, err := s.gameCacheRepo.GetByAppID(appID)
+		if err != nil || cached == nil {
+			// Game not in cache - skip for now, will be fetched during sync
+			needsSync = true
+			continue
+		}
 
-			log.Printf("[GameSync] Fetching owned games for user %s", steamID)
-			games, err := s.fetchUserGames(steamID)
-			if err != nil {
-				log.Printf("[GameSync] Failed to fetch games for user %s: %v", steamID, err)
-				return
-			}
-			log.Printf("[GameSync] User %s has %d games", steamID, len(games))
+		// Skip failed fetches (game doesn't exist on Steam)
+		if cached.FetchFailed {
+			continue
+		}
 
-			mu.Lock()
-			for _, g := range games {
-				if existing, ok := gameMap[g.AppID]; ok {
-					existing.OwnerCount++
-					existing.Owners = append(existing.Owners, steamID)
-					if g.PlaytimeForever > existing.PlaytimeForever {
-						existing.PlaytimeForever = g.PlaytimeForever
-					}
-				} else {
-					game := &models.Game{
-						AppID:           g.AppID,
-						Name:            g.Name,
-						HeaderImageURL:  s.imageCacheService.GetLocalImageURL(g.AppID),
-						CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, g.AppID),
-						PlaytimeForever: g.PlaytimeForever,
-						OwnerCount:      1,
-						Owners:          []string{steamID},
-						Categories:      []string{},
-					}
+		game := &models.Game{
+			AppID:           appID,
+			Name:            cached.Name,
+			HeaderImageURL:  s.imageCacheService.GetLocalImageURL(appID),
+			CapsuleImageURL: fmt.Sprintf("%s/%d/capsule_231x87.jpg", steamCDNBaseURL, appID),
+			Categories:      cached.GetCategories(),
+			OwnerCount:      len(owners),
+			Owners:          owners,
+			IsFree:          cached.IsFree,
+			PriceCents:      cached.PriceCents,
+			OriginalCents:   cached.OriginalCents,
+			DiscountPercent: cached.DiscountPercent,
+			PriceFormatted:  cached.PriceFormatted,
+			ReviewScore:     cached.ReviewScore,
+		}
 
-					// Try to load from DB cache
-					cached, err := s.gameCacheRepo.GetByAppID(g.AppID)
-					if err == nil && cached != nil && !cached.IsStale(gameCacheMaxAge) {
-						game.Categories = cached.GetCategories()
-						if cached.Name != "" {
-							game.Name = cached.Name
-						}
-						game.IsFree = cached.IsFree
-						game.PriceCents = cached.PriceCents
-						game.OriginalCents = cached.OriginalCents
-						game.DiscountPercent = cached.DiscountPercent
-						game.PriceFormatted = cached.PriceFormatted
-						game.ReviewScore = cached.ReviewScore
-					} else {
-						needsSync = true // At least one game needs category fetch
-					}
+		// Check if game data is stale
+		if cached.IsStale(gameCacheMaxAge) {
+			needsSync = true
+		}
 
-					gameMap[g.AppID] = game
-				}
-			}
-			mu.Unlock()
-		}(user.SteamID)
+		gameMap[appID] = game
 	}
 
-	wg.Wait()
-
-	log.Printf("[GameSync] Total unique games from all users: %d, needsSync: %v", len(gameMap), needsSync)
+	log.Printf("[GameSync] Loaded %d games from DB cache, needsSync: %v", len(gameMap), needsSync)
 
 	// Filter for multiplayer games and build response
 	var allGames []models.Game

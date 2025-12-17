@@ -4,16 +4,17 @@ import "time"
 
 // User represents a registered player
 type User struct {
-	ID           uint64    `json:"id"`
-	SteamID      string    `json:"steam_id"`
-	Username     string    `json:"username"`
-	AvatarURL    string    `json:"avatar_url"`
-	AvatarSmall  string    `json:"avatar_small"`
-	ProfileURL   string    `json:"profile_url"`
-	Credits      int       `json:"credits"`
-	LastCreditAt time.Time `json:"last_credit_at"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                 uint64     `json:"id"`
+	SteamID            string     `json:"steam_id"`
+	Username           string     `json:"username"`
+	AvatarURL          string     `json:"avatar_url"`
+	AvatarSmall        string     `json:"avatar_small"`
+	ProfileURL         string     `json:"profile_url"`
+	Credits            int        `json:"credits"`
+	LastCreditAt       time.Time  `json:"last_credit_at"`
+	LastGamesRefreshAt *time.Time `json:"last_games_refresh_at"`
+	CreatedAt          time.Time  `json:"created_at"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // PublicUser represents the public-facing user data (no sensitive info)

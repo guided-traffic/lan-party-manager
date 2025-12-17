@@ -95,7 +95,7 @@ func main() {
 	wsHandler := handlers.NewWebSocketHandler(wsHub, authHandler.GetJWTService())
 	settingsHandler := handlers.NewSettingsHandler(cfg, wsHub, userRepo, voteRepo)
 	chatHandler := handlers.NewChatHandler(chatRepo, userRepo, wsHub)
-	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, cfg, wsHub)
+	gameHandler := handlers.NewGameHandler(gameService, imageCacheService, gameCacheRepo, userRepo, cfg, wsHub)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -192,6 +192,7 @@ func main() {
 			// Games
 			protected.GET("/games", gameHandler.GetMultiplayerGames)
 			protected.POST("/games/refresh", gameHandler.RefreshGames)
+			protected.POST("/games/refresh-my-games", gameHandler.RefreshMyGames)
 			protected.POST("/games/sync", gameHandler.StartBackgroundSync)
 			protected.GET("/games/sync/status", gameHandler.GetSyncStatus)
 

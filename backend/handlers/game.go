@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/guided-traffic/rate-your-mate/backend/auth"
@@ -14,21 +15,28 @@ import (
 	"github.com/guided-traffic/rate-your-mate/backend/websocket"
 )
 
+const (
+	// Cooldown period for refreshing user games
+	userGamesRefreshCooldown = 5 * time.Minute
+)
+
 // GameHandler handles game-related HTTP requests
 type GameHandler struct {
 	gameService       *services.GameService
 	imageCacheService *services.ImageCacheService
 	gameCacheRepo     *repository.GameCacheRepository
+	userRepo          *repository.UserRepository
 	cfg               *config.Config
 	wsHub             *websocket.Hub
 }
 
 // NewGameHandler creates a new game handler
-func NewGameHandler(gameService *services.GameService, imageCacheService *services.ImageCacheService, gameCacheRepo *repository.GameCacheRepository, cfg *config.Config, wsHub *websocket.Hub) *GameHandler {
+func NewGameHandler(gameService *services.GameService, imageCacheService *services.ImageCacheService, gameCacheRepo *repository.GameCacheRepository, userRepo *repository.UserRepository, cfg *config.Config, wsHub *websocket.Hub) *GameHandler {
 	return &GameHandler{
 		gameService:       gameService,
 		imageCacheService: imageCacheService,
 		gameCacheRepo:     gameCacheRepo,
+		userRepo:          userRepo,
 		cfg:               cfg,
 		wsHub:             wsHub,
 	}
@@ -201,4 +209,63 @@ func (h *GameHandler) ServeGameImage(c *gin.Context) {
 	// Serve the cached image
 	c.Header("Cache-Control", "public, max-age=86400") // Cache for 24 hours
 	c.File(filepath.Clean(imagePath))
+}
+
+// RefreshMyGames refreshes the current user's game library from Steam
+// POST /api/v1/games/refresh-my-games
+func (h *GameHandler) RefreshMyGames(c *gin.Context) {
+	// Get user from JWT claims
+	claims, exists := c.Get("claims")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	jwtClaims := claims.(*auth.Claims)
+	steamID := jwtClaims.SteamID
+
+	// Get user from DB to check cooldown
+	user, err := h.userRepo.GetBySteamID(steamID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user"})
+		return
+	}
+
+	// Check cooldown
+	if user.LastGamesRefreshAt != nil {
+		timeSinceLastRefresh := time.Since(*user.LastGamesRefreshAt)
+		if timeSinceLastRefresh < userGamesRefreshCooldown {
+			remainingCooldown := userGamesRefreshCooldown - timeSinceLastRefresh
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":              "Refresh on cooldown",
+				"remaining_seconds":  int(remainingCooldown.Seconds()),
+				"cooldown_ends_at":   user.LastGamesRefreshAt.Add(userGamesRefreshCooldown),
+			})
+			return
+		}
+	}
+
+	// Refresh user's games
+	gameCount, err := h.gameService.RefreshUserGames(steamID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh games"})
+		return
+	}
+
+	// Update last refresh timestamp
+	if err := h.userRepo.UpdateLastGamesRefresh(user.ID); err != nil {
+		// Log but don't fail the request
+		c.JSON(http.StatusOK, gin.H{
+			"message":     "Games refreshed successfully",
+			"game_count":  gameCount,
+			"warning":     "Failed to update refresh timestamp",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "Games refreshed successfully",
+		"game_count":        gameCount,
+		"next_refresh_at":   time.Now().Add(userGamesRefreshCooldown),
+	})
 }

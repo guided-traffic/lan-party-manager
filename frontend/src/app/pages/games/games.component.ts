@@ -20,6 +20,24 @@ import { Subscription } from 'rxjs';
           Multiplayer Games
         </h1>
         <p class="subtitle">Spiele die von LAN-Party Teilnehmern besessen werden</p>
+        <div class="header-actions">
+          <button
+            class="refresh-my-games-btn"
+            (click)="refreshMyGames()"
+            [disabled]="refreshingMyGames() || refreshCooldownRemaining() > 0"
+            [title]="getRefreshButtonTitle()">
+            @if (refreshingMyGames()) {
+              <span class="btn-spinner"></span>
+              Aktualisiere...
+            } @else if (refreshCooldownRemaining() > 0) {
+              <span class="cooldown-icon">⏱️</span>
+              {{ formatCooldown(refreshCooldownRemaining()) }}
+            } @else {
+              <span class="refresh-icon">🔄</span>
+              Meine Spiele aktualisieren
+            }
+          </button>
+        </div>
       </div>
 
       <!-- Sync Status Banner -->
@@ -316,6 +334,56 @@ import { Subscription } from 'rxjs';
         color: $text-secondary;
         font-size: 1rem;
         margin-bottom: 16px;
+      }
+
+      .header-actions {
+        display: flex;
+        justify-content: center;
+        margin-top: 16px;
+      }
+
+      .refresh-my-games-btn {
+        background: linear-gradient(135deg, rgba($accent-primary, 0.15) 0%, rgba($accent-primary, 0.05) 100%);
+        border: 1px solid rgba($accent-primary, 0.4);
+        color: $text-primary;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+          background: linear-gradient(135deg, rgba($accent-primary, 0.25) 0%, rgba($accent-primary, 0.1) 100%);
+          border-color: $accent-primary;
+          transform: translateY(-1px);
+        }
+
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .refresh-icon {
+          font-size: 1rem;
+        }
+
+        .cooldown-icon {
+          font-size: 1rem;
+        }
+
+        .btn-spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba($accent-primary, 0.3);
+          border-top-color: $accent-primary;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
       }
 
       .header-buttons {
@@ -816,6 +884,11 @@ export class GamesComponent implements OnInit, OnDestroy {
     return Math.round((this.syncProcessed() / total) * 100);
   });
 
+  // Refresh my games signals
+  refreshingMyGames = signal(false);
+  refreshCooldownRemaining = signal(0);
+  private cooldownInterval: ReturnType<typeof setInterval> | null = null;
+
   isAdmin = computed(() => this.authService.user()?.is_admin ?? false);
 
   // Map of steamId -> username for displaying owner names
@@ -829,6 +902,9 @@ export class GamesComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+    if (this.cooldownInterval) {
+      clearInterval(this.cooldownInterval);
+    }
   }
 
   private setupWebSocketListeners() {
@@ -987,5 +1063,68 @@ export class GamesComponent implements OnInit, OnDestroy {
 
   openSteamStore(appId: number) {
     window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+  }
+
+  refreshMyGames() {
+    if (this.refreshingMyGames() || this.refreshCooldownRemaining() > 0) {
+      return;
+    }
+
+    this.refreshingMyGames.set(true);
+    this.gameService.refreshMyGames().subscribe({
+      next: (response) => {
+        this.refreshingMyGames.set(false);
+        // Reload games list to show updated data
+        this.loadGamesQuietly();
+        // Start cooldown (5 minutes)
+        this.startCooldown(5 * 60);
+      },
+      error: (err) => {
+        this.refreshingMyGames.set(false);
+        if (err.status === 429 && err.error?.remaining_seconds) {
+          // Server says we're on cooldown
+          this.startCooldown(err.error.remaining_seconds);
+        } else {
+          console.error('Failed to refresh my games', err);
+        }
+      }
+    });
+  }
+
+  private startCooldown(seconds: number) {
+    this.refreshCooldownRemaining.set(seconds);
+
+    if (this.cooldownInterval) {
+      clearInterval(this.cooldownInterval);
+    }
+
+    this.cooldownInterval = setInterval(() => {
+      const remaining = this.refreshCooldownRemaining();
+      if (remaining <= 1) {
+        this.refreshCooldownRemaining.set(0);
+        if (this.cooldownInterval) {
+          clearInterval(this.cooldownInterval);
+          this.cooldownInterval = null;
+        }
+      } else {
+        this.refreshCooldownRemaining.set(remaining - 1);
+      }
+    }, 1000);
+  }
+
+  formatCooldown(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  getRefreshButtonTitle(): string {
+    if (this.refreshingMyGames()) {
+      return 'Aktualisiere deine Spielebibliothek...';
+    }
+    if (this.refreshCooldownRemaining() > 0) {
+      return `Bitte warte noch ${this.formatCooldown(this.refreshCooldownRemaining())}`;
+    }
+    return 'Aktualisiere deine Steam-Spielebibliothek';
   }
 }
