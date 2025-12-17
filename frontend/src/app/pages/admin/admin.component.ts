@@ -1864,8 +1864,15 @@ export class AdminComponent implements OnInit, AfterViewChecked {
         this.countdownTargetSignal.set(settings.countdown_target || null);
         if (settings.countdown_target) {
           const date = new Date(settings.countdown_target);
-          this.countdownDate = date.toISOString().split('T')[0];
-          this.countdownTime = date.toTimeString().slice(0, 5);
+          // Format date as YYYY-MM-DD in local time
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          this.countdownDate = `${year}-${month}-${day}`;
+          // Format time as HH:MM in local time
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          this.countdownTime = `${hours}:${minutes}`;
         } else {
           this.countdownDate = '';
           this.countdownTime = '';
