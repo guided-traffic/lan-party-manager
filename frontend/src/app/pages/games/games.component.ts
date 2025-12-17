@@ -13,7 +13,7 @@ import { Subscription } from 'rxjs';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <div class="games-page">
+    <div class="games-page fade-in">
       <div class="page-header">
         <h1>
           <span class="page-icon">🎮</span>
