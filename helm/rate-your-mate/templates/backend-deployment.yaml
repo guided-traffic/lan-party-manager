@@ -186,7 +186,7 @@ spec:
             {{- if .Values.gameMetadata.override }}
             # Custom game metadata path (mounted from ConfigMap)
             - name: GAME_METADATA_PATH
-              value: "/app/config/game_metadata.json"
+              value: "/app/defaults/game_metadata.json"
             {{- end }}
           livenessProbe:
             httpGet:
@@ -211,7 +211,7 @@ spec:
             {{- end }}
             {{- if .Values.gameMetadata.override }}
             - name: game-metadata
-              mountPath: /app/config/game_metadata.json
+              mountPath: /app/defaults/game_metadata.json
               subPath: game_metadata.json
               readOnly: true
             {{- end }}

@@ -118,8 +118,8 @@ func Load() *Config {
 		AdminPassword: getEnv("ADMIN_PASSWORD", ""),
 		PinnedGameIDs: getEnvAsIntSlice("PINNED_GAME_IDS", []int{}),
 
-		// Game Metadata (default path in container, can be overridden via ConfigMap mount)
-		GameMetadataPath: getEnv("GAME_METADATA_PATH", "config/game_metadata.json"),
+		// Game Metadata (default path, can be overridden via ConfigMap mount in K8s)
+		GameMetadataPath: getEnv("GAME_METADATA_PATH", "defaults/game_metadata.json"),
 
 		// Countdown
 		CountdownTarget: getEnvAsTime("COUNTDOWN_TARGET", time.Time{}),

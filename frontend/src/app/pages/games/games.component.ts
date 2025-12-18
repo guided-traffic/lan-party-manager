@@ -185,7 +185,7 @@ import { Subscription } from 'rxjs';
                       <div class="title-with-players">
                         <h3>{{ game.name }}</h3>
                         @if (game.max_players && game.max_players > 0) {
-                          <span class="max-players">Max {{ game.max_players }} Spieler</span>
+                          <span class="max-players">{{ game.max_players }} Spieler</span>
                         }
                       </div>
                       <div class="price-review-column">

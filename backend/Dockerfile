@@ -57,7 +57,7 @@ WORKDIR /app
 COPY --from=builder /app/main .
 
 # Copy default configuration files (can be overridden via ConfigMap in K8s)
-COPY --from=builder /app/defaults/ /app/config/
+COPY --from=builder /app/defaults/ /app/defaults/
 
 USER 65532:65532
 
