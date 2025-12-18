@@ -1,106 +1,106 @@
 {
   "730": {
-    "max_players": 0,
+    "max_players": 32,
     "notes": "CS2"
   },
   "3949040": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "RV There Yet?"
   },
   "3241660": {
-    "max_players": 0,
+    "max_players": 6,
     "notes": "R.E.P.O."
   },
   "303590": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Hidden in Plain Sight"
   },
   "1016920": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Unrailed!"
   },
   "905340": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Heave Ho"
   },
   "1509960": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Pico Park"
   },
   "2644470": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Pico Park 2"
   },
   "945360": {
-    "max_players": 0,
+    "max_players": 15,
     "notes": "Among Us"
   },
   "291550": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Brawlhalla"
   },
   "1260320": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Party Animals"
   },
   "3527290": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "PEAK"
   },
   "410900": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Forts"
   },
   "4000": {
-    "max_players": 0,
+    "max_players": 128,
     "notes": "Garry's Mod"
   },
   "674940": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Stick Fight: The Game"
   },
   "469820": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Genital Jousting"
   },
   "971690": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Cake Bash"
   },
   "323850": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Move or Die"
   },
   "207140": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "SpeedRunners"
   },
   "232090": {
-    "max_players": 0,
+    "max_players": 6,
     "notes": "Killing Floor 2"
   },
   "477160": {
-    "max_players": 0,
+    "max_players": 8,
     "notes": "Human Fall Flat"
   },
   "252110": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Lovers in a Dangerous Spacetime"
   },
   "728880": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Overcooked! 2"
   },
   "1599600": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "PlateUp!"
   },
   "1144200": {
-    "max_players": 0,
+    "max_players": 5,
     "notes": "Ready or Not"
   },
   "924970": {
-    "max_players": 0,
+    "max_players": 4,
     "notes": "Back 4 Blood"
   }
 }
