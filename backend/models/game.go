@@ -19,6 +19,8 @@ type Game struct {
 	PriceFormatted  string `json:"price_formatted"`   // Formatted price string (e.g., "59,99€" or "Free")
 	// Review information
 	ReviewScore int `json:"review_score"` // Percentage of positive reviews (0-100), -1 if not enough reviews
+	// Custom metadata (manually curated)
+	MaxPlayers int `json:"max_players,omitempty"` // Maximum number of players, 0 if unknown
 }
 
 // GameOwnership represents a player's ownership of a game

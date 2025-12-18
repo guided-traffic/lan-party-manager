@@ -56,6 +56,9 @@ LABEL org.opencontainers.image.title="LAN Party Manager Backend" \
 WORKDIR /app
 COPY --from=builder /app/main .
 
+# Copy default configuration files (can be overridden via ConfigMap in K8s)
+COPY --from=builder /app/defaults/ /app/config/
+
 USER 65532:65532
 
 EXPOSE 8080

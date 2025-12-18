@@ -60,7 +60,8 @@ type Config struct {
 	AdminPassword string // Optional password for additional admin panel security
 
 	// Games
-	PinnedGameIDs []int // App IDs of pinned/featured games
+	PinnedGameIDs        []int  // App IDs of pinned/featured games
+	GameMetadataPath     string // Path to game_metadata.json (can be overridden via ConfigMap)
 
 	// Countdown
 	CountdownTarget time.Time // Target time for countdown (when it reaches zero, voting pause is lifted)
@@ -116,6 +117,9 @@ func Load() *Config {
 		AdminSteamIDs: getEnvAsStringSlice("ADMIN_STEAM_IDS", []string{}),
 		AdminPassword: getEnv("ADMIN_PASSWORD", ""),
 		PinnedGameIDs: getEnvAsIntSlice("PINNED_GAME_IDS", []int{}),
+
+		// Game Metadata (default path in container, can be overridden via ConfigMap mount)
+		GameMetadataPath: getEnv("GAME_METADATA_PATH", "config/game_metadata.json"),
 
 		// Countdown
 		CountdownTarget: getEnvAsTime("COUNTDOWN_TARGET", time.Time{}),

@@ -99,7 +99,12 @@ import { Subscription } from 'rxjs';
                   </div>
                   <div class="game-info">
                     <div class="game-title-row">
-                      <h3>{{ game.name }}</h3>
+                      <div class="title-with-players">
+                        <h3>{{ game.name }}</h3>
+                        @if (game.max_players && game.max_players > 0) {
+                          <span class="max-players">{{ game.max_players }} Spieler</span>
+                        }
+                      </div>
                       <div class="price-review-column">
                         @if (game.price_formatted) {
                           <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
@@ -177,7 +182,12 @@ import { Subscription } from 'rxjs';
                   </div>
                   <div class="game-info">
                     <div class="game-title-row">
-                      <h3>{{ game.name }}</h3>
+                      <div class="title-with-players">
+                        <h3>{{ game.name }}</h3>
+                        @if (game.max_players && game.max_players > 0) {
+                          <span class="max-players">Max {{ game.max_players }} Spieler</span>
+                        }
+                      </div>
                       <div class="price-review-column">
                         @if (game.price_formatted) {
                           <div class="price-badge" [class.free]="game.is_free" [class.discount]="game.discount_percent > 0">
@@ -600,6 +610,27 @@ import { Subscription } from 'rxjs';
           justify-content: space-between;
           gap: 12px;
           margin-bottom: 10px;
+
+          .title-with-players {
+            flex: 1;
+            min-width: 0;
+
+            h3 {
+              font-size: 1rem;
+              line-height: 1.3;
+              display: -webkit-box;
+              -webkit-line-clamp: 2;
+              -webkit-box-orient: vertical;
+              overflow: hidden;
+              margin: 0;
+            }
+
+            .max-players {
+              color: $accent-primary;
+              font-size: 0.75rem;
+              margin-top: 2px;
+            }
+          }
 
           h3 {
             font-size: 1rem;

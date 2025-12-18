@@ -31,15 +31,16 @@ type SyncProgressCallback func(phase string, currentGame string, processed, tota
 
 // GameService handles game-related operations
 type GameService struct {
-	cfg               *config.Config
-	userRepo          *repository.UserRepository
-	gameCacheRepo     *repository.GameCacheRepository
-	gameOwnerRepo     *repository.GameOwnerRepository
-	imageCacheService *ImageCacheService
-	httpClient        *http.Client
-	cache             *gamesCache
-	rateLimiter       *rateLimiter
-	syncProgress      *syncProgress
+	cfg                 *config.Config
+	userRepo            *repository.UserRepository
+	gameCacheRepo       *repository.GameCacheRepository
+	gameOwnerRepo       *repository.GameOwnerRepository
+	imageCacheService   *ImageCacheService
+	gameMetadataService *GameMetadataService
+	httpClient          *http.Client
+	cache               *gamesCache
+	rateLimiter         *rateLimiter
+	syncProgress        *syncProgress
 }
 
 // syncProgress tracks background sync status
@@ -67,13 +68,14 @@ type rateLimiter struct {
 }
 
 // NewGameService creates a new game service
-func NewGameService(cfg *config.Config, userRepo *repository.UserRepository, gameCacheRepo *repository.GameCacheRepository, gameOwnerRepo *repository.GameOwnerRepository, imageCacheService *ImageCacheService) *GameService {
+func NewGameService(cfg *config.Config, userRepo *repository.UserRepository, gameCacheRepo *repository.GameCacheRepository, gameOwnerRepo *repository.GameOwnerRepository, imageCacheService *ImageCacheService, gameMetadataService *GameMetadataService) *GameService {
 	return &GameService{
-		cfg:               cfg,
-		userRepo:          userRepo,
-		gameCacheRepo:     gameCacheRepo,
-		gameOwnerRepo:     gameOwnerRepo,
-		imageCacheService: imageCacheService,
+		cfg:                 cfg,
+		userRepo:            userRepo,
+		gameCacheRepo:       gameCacheRepo,
+		gameOwnerRepo:       gameOwnerRepo,
+		imageCacheService:   imageCacheService,
+		gameMetadataService: gameMetadataService,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
@@ -334,10 +336,26 @@ func (s *GameService) fetchMultiplayerGames() (*models.GamesResponse, error) {
 		return indexI < indexJ
 	})
 
+	// Enrich games with custom metadata (e.g., max_players)
+	s.enrichGamesWithMetadata(pinnedGames)
+	s.enrichGamesWithMetadata(unpinnedGames)
+
 	return &models.GamesResponse{
 		PinnedGames: pinnedGames,
 		AllGames:    unpinnedGames,
 	}, nil
+}
+
+// enrichGamesWithMetadata adds custom metadata to games
+func (s *GameService) enrichGamesWithMetadata(games []models.Game) {
+	if s.gameMetadataService == nil {
+		return
+	}
+	for i := range games {
+		if maxPlayers := s.gameMetadataService.GetMaxPlayers(games[i].AppID); maxPlayers > 0 {
+			games[i].MaxPlayers = maxPlayers
+		}
+	}
 }
 
 // ownedGamesResponse represents Steam API response for owned games
@@ -920,6 +938,8 @@ func (s *GameService) buildGamesFromCache() (*models.GamesResponse, bool, error)
 	if len(ownersMap) == 0 {
 		log.Printf("[GameSync] No game owners in DB, loading pinned games only")
 		pinnedGames := s.loadPinnedGamesFromCache(&needsSync)
+		// Enrich pinned games with custom metadata
+		s.enrichGamesWithMetadata(pinnedGames)
 		needsSync = true // Trigger sync to populate game owners
 		return &models.GamesResponse{
 			PinnedGames: pinnedGames,
@@ -1060,6 +1080,10 @@ func (s *GameService) buildGamesFromCache() (*models.GamesResponse, bool, error)
 		}
 		return indexI < indexJ
 	})
+
+	// Enrich games with custom metadata (e.g., max_players)
+	s.enrichGamesWithMetadata(pinnedGames)
+	s.enrichGamesWithMetadata(unpinnedGames)
 
 	return &models.GamesResponse{
 		PinnedGames: pinnedGames,

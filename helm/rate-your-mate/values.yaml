@@ -116,6 +116,25 @@ database:
       connMaxLifetime: "5m"
       connMaxIdleTime: "1m"
 
+# Game metadata configuration (max players per game, etc.)
+# The default is baked into the container image at /app/config/game_metadata.json
+# Use this to override with a ConfigMap
+gameMetadata:
+  # Set to true to use a custom ConfigMap for game metadata
+  override: false
+  # Name of existing ConfigMap containing game_metadata.json
+  # If empty and override=true, a ConfigMap will be created from gameMetadata.data
+  existingConfigMap: ""
+  # Inline game metadata (only used if override=true and existingConfigMap is empty)
+  # Format: { "appId": { "max_players": N, "notes": "..." }, ... }
+  data: {}
+  #   "730":
+  #     max_players: 10
+  #     notes: "CS2 - Competitive 5v5"
+  #   "570":
+  #     max_players: 10
+  #     notes: "Dota 2 - 5v5 MOBA"
+
 secrets:
   # Set to false if you manage secrets externally
   create: true

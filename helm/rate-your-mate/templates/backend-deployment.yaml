@@ -183,6 +183,11 @@ spec:
             - name: MYSQL_CONN_MAX_IDLE_TIME
               value: "{{ .Values.database.mysql.pool.connMaxIdleTime }}"
             {{- end }}
+            {{- if .Values.gameMetadata.override }}
+            # Custom game metadata path (mounted from ConfigMap)
+            - name: GAME_METADATA_PATH
+              value: "/app/config/game_metadata.json"
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -197,12 +202,18 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.backend.resources | nindent 12 }}
-          {{- $needsVolumeMounts := or .Values.backend.persistence.enabled (and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name) }}
+          {{- $needsVolumeMounts := or .Values.backend.persistence.enabled .Values.gameMetadata.override (and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name) }}
           {{- if $needsVolumeMounts }}
           volumeMounts:
             {{- if .Values.backend.persistence.enabled }}
             - name: data
               mountPath: {{ .Values.backend.persistence.mountPath | default "/app/data" }}
+            {{- end }}
+            {{- if .Values.gameMetadata.override }}
+            - name: game-metadata
+              mountPath: /app/config/game_metadata.json
+              subPath: game_metadata.json
+              readOnly: true
             {{- end }}
             {{- if and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name }}
             - name: mysql-tls
@@ -210,13 +221,18 @@ spec:
               readOnly: true
             {{- end }}
           {{- end }}
-      {{- $needsVolumes := or .Values.backend.persistence.enabled (and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name) }}
+      {{- $needsVolumes := or .Values.backend.persistence.enabled .Values.gameMetadata.override (and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name) }}
       {{- if $needsVolumes }}
       volumes:
         {{- if .Values.backend.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "rate-your-mate.fullname" . }}-backend-data
+        {{- end }}
+        {{- if .Values.gameMetadata.override }}
+        - name: game-metadata
+          configMap:
+            name: {{ .Values.gameMetadata.existingConfigMap | default (printf "%s-game-metadata" (include "rate-your-mate.fullname" .)) }}
         {{- end }}
         {{- if and (eq .Values.database.type "mysql") .Values.database.mysql.tls.enabled .Values.database.mysql.tls.caSecret.name }}
         - name: mysql-tls

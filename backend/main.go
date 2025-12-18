@@ -78,7 +78,8 @@ func main() {
 	creditService := services.NewCreditService(cfg, userRepo)
 	imageCacheService := services.NewImageCacheService()
 	avatarCacheService := services.NewAvatarCacheService(cfg.BackendURL)
-	gameService := services.NewGameService(cfg, userRepo, gameCacheRepo, gameOwnerRepo, imageCacheService)
+	gameMetadataService := services.NewGameMetadataService(cfg.GameMetadataPath)
+	gameService := services.NewGameService(cfg, userRepo, gameCacheRepo, gameOwnerRepo, imageCacheService, gameMetadataService)
 	countdownService := services.NewCountdownService(cfg, wsHub, userRepo)
 
 	// Start countdown watcher

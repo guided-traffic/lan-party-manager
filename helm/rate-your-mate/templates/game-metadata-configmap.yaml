@@ -1,0 +1,13 @@
+{{- if .Values.gameMetadata.override }}
+{{- if not .Values.gameMetadata.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "rate-your-mate.fullname" . }}-game-metadata
+  labels:
+    {{- include "rate-your-mate.labels" . | nindent 4 }}
+data:
+  game_metadata.json: |
+    {{- .Values.gameMetadata.data | toJson | nindent 4 }}
+{{- end }}
+{{- end }}

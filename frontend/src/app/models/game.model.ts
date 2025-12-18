@@ -16,6 +16,8 @@ export interface Game {
   price_formatted: string;
   // Review information
   review_score: number; // Percentage of positive reviews (0-100), -1 if not enough reviews
+  // Custom metadata (manually curated)
+  max_players?: number; // Maximum number of players, 0 or undefined if unknown
 }
 
 export interface SyncStatus {
