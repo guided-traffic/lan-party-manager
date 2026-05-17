@@ -1,12 +1,12 @@
 name: Renovate Application
 on:
-  # Täglich um 2 Uhr morgens UTC ausführen
-  schedule:
-    - cron: '0 2 * * *'
-  # Nach jedem Push auf main
-  push:
-    branches:
-      - main
+  # # Täglich um 2 Uhr morgens UTC ausführen
+  # schedule:
+  #   - cron: '0 2 * * *'
+  # # Nach jedem Push auf main
+  # push:
+  #   branches:
+  #     - main
   # Manueller Trigger
   workflow_dispatch:
     inputs:
